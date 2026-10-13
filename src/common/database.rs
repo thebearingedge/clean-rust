@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 
 use crate::common::errors::DbError;
 
-#[cfg(feature = "test-utils")]
+#[cfg(test)]
 use {
     sqlx::Transaction,
     std::sync::Arc,
@@ -13,25 +13,25 @@ use {
 #[derive(Clone)]
 pub enum Database {
     Pool(PgPool),
-    #[cfg(feature = "test-utils")]
+    #[cfg(test)]
     Test(Arc<Mutex<Transaction<'static, Postgres>>>),
 }
 
 pub enum Conn {
     Pool(PoolConnection<Postgres>),
-    #[cfg(feature = "test-utils")]
+    #[cfg(test)]
     Test(OwnedMutexGuard<Transaction<'static, Postgres>>),
 }
 
 impl Database {
-    pub async fn connect(&self) -> Result<Conn, DbError> {
+    pub async fn acquire(&self) -> Result<Conn, DbError> {
         match self {
             Database::Pool(pool) => pool
                 .acquire()
                 .await
                 .map(Conn::Pool)
                 .map_err(|e| DbError::new("acquiring connection", e)),
-            #[cfg(feature = "test-utils")]
+            #[cfg(test)]
             Database::Test(tx) => Ok(Conn::Test(tx.clone().lock_owned().await)),
         }
     }
@@ -42,7 +42,7 @@ impl Deref for Conn {
     fn deref(&self) -> &PgConnection {
         match self {
             Conn::Pool(c) => &**c,
-            #[cfg(feature = "test-utils")]
+            #[cfg(test)]
             Conn::Test(g) => &***g,
         }
     }
@@ -52,7 +52,7 @@ impl DerefMut for Conn {
     fn deref_mut(&mut self) -> &mut PgConnection {
         match self {
             Conn::Pool(c) => &mut **c,
-            #[cfg(feature = "test-utils")]
+            #[cfg(test)]
             Conn::Test(g) => &mut ***g,
         }
     }

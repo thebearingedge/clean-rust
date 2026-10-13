@@ -5,6 +5,12 @@ default:
 watch:
   watchexec -r -w src/ -- cargo run
 
+test-watch:
+  watchexec -r -w src/ -- cargo test
+
+cover:
+  cargo tarpaulin -o Html
+
 migrate direction:
   #!/usr/bin/env bash
   case {{direction}} in

@@ -306,14 +306,16 @@ dependencies = [
  "async-trait",
  "axum",
  "chrono",
- "clean-rust",
+ "http-body-util",
  "jsonschema",
  "schemars",
  "serde",
+ "serde-json-assert",
  "serde_json",
  "sqlx",
  "thiserror",
  "tokio",
+ "tower",
  "tower-http 0.7.1",
  "tracing",
  "tracing-subscriber",
@@ -563,6 +565,15 @@ name = "find-msvc-tools"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aedcfb3409746eddb02b9e19ebda1c3394f759a152e48ee875a0844d1b955484"
+
+[[package]]
+name = "float-cmp"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b09cf3155332e944990140d967ff5eceb70df778b34f77d8075db46e4704e6d8"
+dependencies = [
+ "num-traits",
+]
 
 [[package]]
 name = "fluent-uri"
@@ -1839,6 +1850,17 @@ checksum = "4148590afebada386688f18773da617792bf2ef03ffc1e4cbd2b1d45b023e0ba"
 dependencies = [
  "serde_core",
  "serde_derive",
+]
+
+[[package]]
+name = "serde-json-assert"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1868f55385c1cbda8c62aec205ab5874536f3492e11456e04265509848fe982"
+dependencies = [
+ "float-cmp",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

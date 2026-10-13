@@ -6,5 +6,8 @@
   "cSpell.words": [
     "interactor",
     "interactors"
+  ],
+  "rust-analyzer.cargo.features": [
+    "test-utils"
   ]
 }

@@ -16,7 +16,7 @@ impl TodosRepository {
     }
 
     pub async fn add_todo(&self, todo: &TodoModel) -> Result<TodoModel, DbError> {
-        let mut conn = self.database.connect().await?;
+        let mut conn = self.database.acquire().await?;
         sqlx::query_as::<_, TodoModel>(
             "
             insert into todos (
