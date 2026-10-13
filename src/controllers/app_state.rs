@@ -1,0 +1,50 @@
+use jsonschema::Validator;
+
+use crate::{
+    common::{database::Database, extractors::HasSchema},
+    controllers::todos_controller::NewTodoHttp,
+    repositories::todos_repository::TodosRepository,
+    use_cases::todos_interactor::TodosInteractor,
+};
+
+#[derive(Clone)]
+pub struct AppState {
+    pub interactors: Interactors,
+    pub schemas: Schemas,
+}
+
+impl AppState {
+    pub fn new(executor: Database) -> Self {
+        let interactors = Interactors {
+            todos: TodosInteractor::new(TodosRepository::new(executor)),
+        };
+
+        let schemas = Schemas {
+            add_todo: Validator::new(
+                &serde_json::to_value(schemars::schema_for!(NewTodoHttp)).unwrap(),
+            )
+            .unwrap(),
+        };
+
+        Self {
+            interactors,
+            schemas,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct Interactors {
+    pub todos: TodosInteractor,
+}
+
+#[derive(Clone)]
+pub struct Schemas {
+    pub add_todo: Validator,
+}
+
+impl HasSchema<NewTodoHttp> for AppState {
+    fn validator_for(&self) -> &Validator {
+        &self.schemas.add_todo
+    }
+}
