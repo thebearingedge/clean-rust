@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use sqlx::FromRow;
 use uuid::Uuid;
 
-#[derive(Default, FromRow)]
+#[derive(Debug, Default, FromRow)]
 pub struct TodoModel {
     pub todo_id: Option<Uuid>,
     pub task: String,

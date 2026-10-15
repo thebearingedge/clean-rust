@@ -2,6 +2,7 @@ use axum::{Json, extract::State, http::StatusCode};
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{
@@ -9,7 +10,7 @@ use crate::{
     use_cases::todos_interactor::TodoError,
 };
 
-#[derive(Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
 pub struct NewTodoHttp {
     #[validate(length(min = 1))]
@@ -45,6 +46,7 @@ impl Into<TodoHttp> for TodoModel {
     }
 }
 
+#[instrument(skip_all)]
 pub async fn add_todo(
     State(app_state): State<AppState>,
     ValidatedJson(new_todo): ValidatedJson<NewTodoHttp>,

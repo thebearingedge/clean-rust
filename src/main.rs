@@ -13,13 +13,13 @@ use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 
 use crate::{
-    common::telemetry::init_logging, controllers::app_state::AppState,
+    common::telemetry::init_telemetry, controllers::app_state::AppState,
     delivery::todos_api::create_todos_api,
 };
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    init_logging();
+    let telemetry = init_telemetry();
 
     tracing::info!("connecting to postgres...");
 
@@ -28,7 +28,7 @@ async fn main() -> anyhow::Result<()> {
         .max_connections(10)
         .connect(
             std::env::var("DATABASE_URL")
-                .unwrap_or("postgres://app:app@localhost:5432/app".to_string())
+                .unwrap_or("postgres://postgres:password@localhost/postgres".to_string())
                 .as_str(),
         )
         .await?;
@@ -38,7 +38,7 @@ async fn main() -> anyhow::Result<()> {
     let router = create_todos_api(AppState::new(pool)).layer(TraceLayer::new_for_http());
 
     let address: SocketAddr = std::env::var("LISTEN_ADDRESS")
-        .unwrap_or("127.0.0.1:3000".to_string())
+        .unwrap_or("0.0.0.0:3000".to_string())
         .parse()?;
 
     let listener = TcpListener::bind(&address).await?;
@@ -46,6 +46,8 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("listening at {}", address);
 
     serve(listener, router).await?;
+
+    telemetry.shutdown()?;
 
     Ok(())
 }

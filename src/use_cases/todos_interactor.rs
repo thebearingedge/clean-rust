@@ -4,6 +4,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use thiserror::Error;
+use tracing::instrument;
 
 use crate::{
     common::errors::DbError, models::todo::TodoModel,
@@ -32,7 +33,7 @@ impl IntoResponse for TodoError {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TodosInteractor {
     repository: TodosRepository,
 }
@@ -42,6 +43,7 @@ impl TodosInteractor {
         Self { repository }
     }
 
+    #[instrument(skip_all)]
     pub async fn add(&self, todo: &TodoModel) -> Result<TodoModel, TodoError> {
         if !todo.has_valid_task() {
             return Err(TodoError::EmptyTask);
