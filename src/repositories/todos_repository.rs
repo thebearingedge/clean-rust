@@ -1,7 +1,10 @@
 use sqlx::{self, PgPool};
 use tracing::instrument;
 
-use crate::{common::errors::DbError, models::todo::TodoModel};
+use crate::{
+    models::todo::TodoModel,
+    repositories::db_error::{DbContext, DbError},
+};
 
 #[derive(Clone, Debug)]
 pub struct TodosRepository {
@@ -14,7 +17,7 @@ impl TodosRepository {
     }
 
     #[instrument(skip_all)]
-    pub async fn add_todo(&self, todo: &TodoModel) -> Result<TodoModel, DbError> {
+    pub async fn add(&self, todo: &TodoModel) -> Result<TodoModel, DbError> {
         sqlx::query_as::<_, TodoModel>(
             "
             insert into todos (
@@ -33,6 +36,6 @@ impl TodosRepository {
         .bind(todo.completed_at)
         .fetch_one(&self.service)
         .await
-        .map_err(|e| DbError::new("inserting todo", e))
+        .db_context("inserting todo")
     }
 }
