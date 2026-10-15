@@ -6,7 +6,7 @@ use crate::{
     repositories::todos_repository::TodosRepository, use_cases::todos_interactor::TodosInteractor,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AppState {
     pub interactors: Interactors,
     pub schemas: Schemas,
@@ -32,12 +32,12 @@ impl AppState {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Interactors {
     pub todos: TodosInteractor,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Schemas {
     pub add_todo: Validator,
 }

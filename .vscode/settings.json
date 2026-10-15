@@ -1,13 +1,10 @@
 {
+  "editor.formatOnSave": true,
   "[rust]": {
-    "editor.formatOnSave": true,
     "editor.tabSize": 4
   },
   "cSpell.words": [
     "interactor",
     "interactors"
-  ],
-  "rust-analyzer.cargo.features": [
-    "test-utils"
   ]
 }

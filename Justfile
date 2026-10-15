@@ -11,6 +11,9 @@ test-watch:
 cover:
   cargo tarpaulin -o Html
 
+psql:
+  docker compose exec -it postgres psql -U postgres
+
 migrate direction:
   #!/usr/bin/env bash
   case {{direction}} in

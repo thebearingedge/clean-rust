@@ -1,8 +1,9 @@
 use sqlx::{self, PgPool};
+use tracing::instrument;
 
 use crate::{common::errors::DbError, models::todo::TodoModel};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TodosRepository {
     service: PgPool,
 }
@@ -12,6 +13,7 @@ impl TodosRepository {
         Self { service }
     }
 
+    #[instrument(skip_all)]
     pub async fn add_todo(&self, todo: &TodoModel) -> Result<TodoModel, DbError> {
         sqlx::query_as::<_, TodoModel>(
             "
