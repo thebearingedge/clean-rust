@@ -13,9 +13,8 @@ use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 
 use crate::{
-    common::{database::Database, telemetry::init_logging},
-    controllers::app_state::AppState,
-    delivery::todos_api::create_todos_router,
+    common::telemetry::init_logging, controllers::app_state::AppState,
+    delivery::todos_api::create_todos_api,
 };
 
 #[tokio::main]
@@ -36,9 +35,7 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("connected to postgres");
 
-    let app_state = AppState::new(Database::Pool(pool));
-
-    let router = create_todos_router(app_state).layer(TraceLayer::new_for_http());
+    let router = create_todos_api(AppState::new(pool)).layer(TraceLayer::new_for_http());
 
     let address: SocketAddr = std::env::var("LISTEN_ADDRESS")
         .unwrap_or("127.0.0.1:3000".to_string())
