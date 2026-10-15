@@ -1,10 +1,9 @@
 use jsonschema::Validator;
+use sqlx::PgPool;
 
 use crate::{
-    common::{database::Database, extractors::HasSchema},
-    controllers::todos_controller::NewTodoHttp,
-    repositories::todos_repository::TodosRepository,
-    use_cases::todos_interactor::TodosInteractor,
+    common::extractors::HasSchema, controllers::todos_controller::NewTodoHttp,
+    repositories::todos_repository::TodosRepository, use_cases::todos_interactor::TodosInteractor,
 };
 
 #[derive(Clone)]
@@ -14,9 +13,9 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub fn new(executor: Database) -> Self {
+    pub fn new(postgres: PgPool) -> Self {
         let interactors = Interactors {
-            todos: TodosInteractor::new(TodosRepository::new(executor)),
+            todos: TodosInteractor::new(TodosRepository::new(postgres)),
         };
 
         let schemas = Schemas {

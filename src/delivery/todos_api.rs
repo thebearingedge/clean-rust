@@ -2,7 +2,7 @@ use axum::{Router, routing::post};
 
 use crate::controllers::{app_state::AppState, todos_controller::add_todo};
 
-pub fn create_todos_router(app_state: AppState) -> Router {
+pub fn create_todos_api(app_state: AppState) -> Router {
     Router::new()
         .route("/v1/todos", post(add_todo))
         .with_state(app_state)
@@ -10,50 +10,30 @@ pub fn create_todos_router(app_state: AppState) -> Router {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use axum::{
-        Router,
         body::Body,
         http::{Method, Request, Response, StatusCode, header},
     };
     use http_body_util::BodyExt;
     use serde_json::Value;
     use serde_json_assert::assert_json_include;
-    use sqlx::postgres::PgPoolOptions;
-    use tokio::sync::Mutex;
+    use sqlx::PgPool;
     use tower::ServiceExt;
 
-    use crate::{
-        common::database::Database, controllers::app_state::AppState,
-        delivery::todos_api::create_todos_router,
-    };
+    use crate::{controllers::app_state::AppState, delivery::todos_api::create_todos_api};
 
-    async fn create_test_todos_router() -> Router {
-        let pool = PgPoolOptions::new()
-            .max_connections(1)
-            .connect(&std::env::var("DATABASE_URL").unwrap())
-            .await
-            .unwrap();
-        let tx = Arc::new(Mutex::new(pool.begin().await.unwrap()));
-        create_todos_router(AppState::new(Database::Test(tx)))
+    fn build_request(method: Method, uri: &'static str, data: Option<Value>) -> Request<Body> {
+        let builder = Request::builder().method(method).uri(uri);
+        if let Some(body) = data {
+            return builder
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap();
+        }
+        builder.body(Body::empty()).unwrap()
     }
 
-    fn build_request(
-        method: Method,
-        uri: &'static str,
-        content_type: &'static str,
-        body: Value,
-    ) -> Request<Body> {
-        Request::builder()
-            .method(method)
-            .uri(uri)
-            .header(header::CONTENT_TYPE, content_type)
-            .body(Body::from(serde_json::to_vec(&body).unwrap()))
-            .unwrap()
-    }
-
-    async fn get_response_data(res: Response<Body>) -> (StatusCode, String, Value) {
+    async fn get_response_data(res: Response<Body>) -> (StatusCode, String, Option<Value>) {
         let status = res.status();
         let content_type = res
             .headers()
@@ -63,44 +43,25 @@ mod tests {
             .unwrap()
             .to_string();
         let bytes = res.into_body().collect().await.unwrap().to_bytes();
-        let json = serde_json::from_slice(&bytes).unwrap();
+        let json = serde_json::from_slice(&bytes).ok();
         (status, content_type, json)
     }
 
-    #[tokio::test]
-    async fn responds_with_the_added_todo() {
-        let router = create_test_todos_router().await;
+    #[sqlx::test]
+    async fn rejects_a_missing_task(postgres: PgPool) {
+        let router = create_todos_api(AppState::new(postgres));
         let req = build_request(
             Method::POST,
             "/v1/todos",
-            "application/json",
-            serde_json::json!({
-                "task": "write some rust!"
-            }),
+            Some(serde_json::json!({
+                "task": ""
+            })),
         );
         let res = router.oneshot(req).await.unwrap();
         let (status, content_type, data) = get_response_data(res).await;
 
-        assert_eq!(status, StatusCode::CREATED);
-        assert_eq!(content_type, "application/json".to_string());
-        assert_json_include!(actual: data, expected: serde_json::json!({ "task": "write some rust!" }));
-    }
-
-    #[tokio::test]
-    async fn rejects_a_missing_task() {
-        let router = create_test_todos_router().await;
-        let req = build_request(
-            Method::POST,
-            "/v1/todos",
-            "application/json",
-            serde_json::json!({
-                "task": ""
-            }),
-        );
-        let res = router.oneshot(req).await.unwrap();
-        let (status, _content_type, data) = get_response_data(res).await;
-
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(content_type, "application/json");
         assert_json_include!(actual: data, expected: serde_json::json!({
             "details": [
                 {
@@ -109,6 +70,27 @@ mod tests {
                 }
             ],
            "error": "schema violation"
+        }));
+    }
+
+    #[sqlx::test]
+    async fn responds_with_the_added_todo(postgres: PgPool) {
+        let router = create_todos_api(AppState::new(postgres));
+        let req = build_request(
+            Method::POST,
+            "/v1/todos",
+            Some(serde_json::json!({
+                "task": "write some rust!"
+            })),
+        );
+        let res = router.oneshot(req).await.unwrap();
+        let (status, content_type, data) = get_response_data(res).await;
+
+        assert_eq!(status, StatusCode::CREATED);
+        assert_eq!(content_type, "application/json".to_string());
+        assert_json_include!(actual: data, expected: serde_json::json!({
+            "task": "write some rust!",
+            "completedAt": null
         }));
     }
 }
