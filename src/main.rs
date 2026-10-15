@@ -9,7 +9,7 @@ use std::net::SocketAddr;
 
 use axum::serve;
 use sqlx::postgres::PgPoolOptions;
-use tokio::net::TcpListener;
+use tokio::{net::TcpListener, signal};
 use tower_http::trace::TraceLayer;
 
 use crate::{
@@ -35,7 +35,7 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("connected to postgres");
 
-    let router = create_todos_api(AppState::new(pool)).layer(TraceLayer::new_for_http());
+    let router = create_todos_api(AppState::new(pool.clone())).layer(TraceLayer::new_for_http());
 
     let address: SocketAddr = std::env::var("LISTEN_ADDRESS")
         .unwrap_or("0.0.0.0:3000".to_string())
@@ -45,9 +45,42 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("listening at {}", address);
 
-    serve(listener, router).await?;
+    let shutdown = serve(listener, router)
+        .with_graceful_shutdown(shutdown_signal())
+        .await;
 
+    tracing::info!("server stopped, cleaning up");
+
+    pool.close().await;
     telemetry.shutdown()?;
 
+    shutdown?;
+
     Ok(())
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+
+    tracing::info!("shutdown signal received, draining connections...");
 }
