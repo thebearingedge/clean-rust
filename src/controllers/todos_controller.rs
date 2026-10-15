@@ -6,28 +6,29 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{
-    common::extractors::ValidatedJson, controllers::app_state::AppState, models::todo::TodoModel,
-    use_cases::todos_interactor::TodoError,
+    common::{app_error::AppError, extractors::ValidatedJson},
+    controllers::app_state::AppState,
+    models::todo::TodoModel,
 };
 
 #[derive(Debug, Deserialize, JsonSchema)]
-#[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
+#[serde(rename_all = "camelCase")]
 pub struct NewTodoHttp {
     #[validate(length(min = 1))]
     task: String,
 }
 
-impl Into<TodoModel> for NewTodoHttp {
-    fn into(self) -> TodoModel {
+impl From<NewTodoHttp> for TodoModel {
+    fn from(http: NewTodoHttp) -> Self {
         TodoModel {
-            task: self.task,
+            task: http.task,
             ..TodoModel::default()
         }
     }
 }
 
 #[derive(Serialize)]
-#[serde(rename_all(serialize = "camelCase", deserialize = "snake_case"))]
+#[serde(rename_all = "camelCase")]
 pub struct TodoHttp {
     todo_id: Option<Uuid>,
     task: String,
@@ -35,13 +36,13 @@ pub struct TodoHttp {
     completed_at: Option<DateTime<Utc>>,
 }
 
-impl Into<TodoHttp> for TodoModel {
-    fn into(self) -> TodoHttp {
+impl From<TodoModel> for TodoHttp {
+    fn from(model: TodoModel) -> Self {
         TodoHttp {
-            todo_id: self.todo_id,
-            task: self.task,
-            updated_at: self.updated_at,
-            completed_at: self.completed_at,
+            todo_id: model.todo_id,
+            task: model.task,
+            updated_at: model.updated_at,
+            completed_at: model.completed_at,
         }
     }
 }
@@ -50,7 +51,7 @@ impl Into<TodoHttp> for TodoModel {
 pub async fn add_todo(
     State(app_state): State<AppState>,
     ValidatedJson(new_todo): ValidatedJson<NewTodoHttp>,
-) -> Result<(StatusCode, Json<TodoHttp>), TodoError> {
+) -> Result<(StatusCode, Json<TodoHttp>), AppError> {
     let model = app_state.interactors.todos.add(&new_todo.into()).await?;
     Ok((StatusCode::CREATED, Json(model.into())))
 }

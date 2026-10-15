@@ -11,6 +11,10 @@ pub struct TodoModel {
 }
 
 impl TodoModel {
+    pub fn has_valid_id(&self) -> bool {
+        self.todo_id.is_some()
+    }
+
     pub fn has_valid_task(&self) -> bool {
         self.task.trim().len() > 1
     }

@@ -29,20 +29,24 @@ impl DbError {
     }
 }
 
+pub trait DbContext<T> {
+    fn db_context(self, context: impl Into<String>) -> Result<T, DbError>;
+}
+
+impl<T> DbContext<T> for Result<T, sqlx::Error> {
+    fn db_context(self, context: impl Into<String>) -> Result<T, DbError> {
+        self.map_err(|e| DbError::new(context, e))
+    }
+}
+
 impl IntoResponse for DbError {
     fn into_response(self) -> Response {
-        if self.is_unavailable() {
-            return (
-                StatusCode::SERVICE_UNAVAILABLE,
-                Json(serde_json::json!({ "error": "service unavailable" })),
-            )
-                .into_response();
-        }
-        tracing::error!("{}", self);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({ "error": "internal server error" })),
-        )
-            .into_response()
+        tracing::error!(error = ?self, "database error");
+        let (status, message) = if self.is_unavailable() {
+            (StatusCode::SERVICE_UNAVAILABLE, "service unavailable")
+        } else {
+            (StatusCode::INTERNAL_SERVER_ERROR, "internal server error")
+        };
+        (status, Json(serde_json::json!({ "error": message }))).into_response()
     }
 }
