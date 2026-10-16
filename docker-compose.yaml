@@ -9,6 +9,7 @@ services:
     tmpfs: /var/lib/postgresql
     volumes:
       - ./services/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./services/postgres/01-create-databases.sql:/docker-entrypoint-initdb.d/01-create-databases.sql:ro
     ports:
       - 5432:5432
     healthcheck:

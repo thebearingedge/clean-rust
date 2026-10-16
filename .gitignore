@@ -1,3 +1,1 @@
-/target
-*.profraw
-tarpaulin-report.html
+target
