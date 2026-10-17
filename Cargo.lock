@@ -3099,6 +3099,7 @@ dependencies = [
  "serde_json",
  "storage",
  "tokio",
+ "tower-http 0.7.1",
  "tracing",
 ]
 

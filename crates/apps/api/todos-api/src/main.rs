@@ -3,10 +3,15 @@ use std::net::SocketAddr;
 use axum::serve;
 use sqlx::postgres::PgPoolOptions;
 use tokio::net::TcpListener;
+use tower_http::trace::DefaultOnFailure;
 use tower_http::trace::TraceLayer;
 
 use telemetry::provider::get_tracer_provider;
-use web::shutdown_signal;
+use tracing::Level;
+use web::{
+    middleware::{HttpMakeSpan, HttpOnResponse},
+    shutdown_signal,
+};
 
 use todos::MIGRATOR;
 use todos_api::{api::create_todos_api, app_state::AppState};
@@ -33,7 +38,13 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("migrations up to date");
 
-    let router = create_todos_api(AppState::new(pool.clone())).layer(TraceLayer::new_for_http());
+    let router = create_todos_api(AppState::new(pool.clone())).layer(
+        TraceLayer::new_for_http()
+            .make_span_with(HttpMakeSpan)
+            .on_request(())
+            .on_response(HttpOnResponse)
+            .on_failure(DefaultOnFailure::new().level(Level::ERROR)),
+    );
 
     let address: SocketAddr = std::env::var("LISTEN_ADDRESS")
         .unwrap_or("0.0.0.0:3000".to_string())
@@ -41,13 +52,13 @@ async fn main() -> anyhow::Result<()> {
 
     let listener = TcpListener::bind(&address).await?;
 
-    tracing::info!("listening at {}", address);
+    tracing::info!("listening at {address}");
 
     let shutdown = serve(listener, router)
         .with_graceful_shutdown(shutdown_signal())
         .await;
 
-    tracing::info!("server stopped, cleaning up");
+    tracing::info!("shutdown signal received, draining connections...");
 
     pool.close().await;
     tracer_provider.shutdown()?;

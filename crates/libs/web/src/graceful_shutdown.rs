@@ -2,7 +2,7 @@ use tokio::signal;
 
 /// # Panics
 ///
-/// Will panic if Ctrl+C handler cannot be installed
+/// Will panic if Ctrl+C or SIGTERM handler cannot be installed.
 pub async fn shutdown_signal() {
     let ctrl_c = async {
         signal::ctrl_c()
@@ -25,6 +25,4 @@ pub async fn shutdown_signal() {
         () = ctrl_c => {},
         () = terminate => {},
     }
-
-    tracing::info!("shutdown signal received, draining connections...");
 }

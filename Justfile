@@ -1,10 +1,17 @@
+set quiet
+
 [private]
 default:
   @just --list --unsorted --list-heading '' --list-prefix ''
 
 init:
+  cargo install --locked sqlx-cli@0.9.0
   cargo install --locked watchexec-cli@2.8.0
   cargo install --locked cargo-llvm-cov@0.9.1
+
+migrate domain *args='run':
+  set -a; . tools/envs/{{domain}}.env; set +a; \
+  sqlx migrate {{args}} --source crates/domains/{{domain}}/migrations
 
 cargo-lint:
   cargo clippy --workspace --all-targets -- -D warnings
