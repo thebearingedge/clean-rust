@@ -22,7 +22,7 @@ async fn main() -> anyhow::Result<()> {
         .max_connections(10)
         .connect(
             std::env::var("DATABASE_URL")
-                .unwrap_or("postgres://postgres:password@localhost/postgres".to_string())
+                .unwrap_or("postgres://postgres:password@localhost/todos".to_string())
                 .as_str(),
         )
         .await?;
