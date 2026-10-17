@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["apps/*/*", "domains/*", "libs/*"]
+members = ["crates/apps/*/*", "crates/domains/*", "crates/libs/*"]
 
 [workspace.package]
 version = "0.1.0"
@@ -8,12 +8,12 @@ edition = "2024"
 publish = false
 
 [workspace.dependencies]
-database = { path = "libs/database" }
-telemetry = { path = "libs/telemetry" }
-todos = { path = "domains/todos" }
-storage = { path = "libs/storage" }
-util = { path = "libs/util" }
-web = { path = "libs/web" }
+todos = { path = "crates/domains/todos" }
+database = { path = "crates/libs/database" }
+telemetry = { path = "crates/libs/telemetry" }
+storage = { path = "crates/libs/storage" }
+util = { path = "crates/libs/util" }
+web = { path = "crates/libs/web" }
 
 anyhow = "1.0.104"
 async-trait = "0.1.92"
