@@ -2,23 +2,14 @@
 default:
   @just --list --unsorted --list-heading '' --list-prefix ''
 
-watch:
-  watchexec -r -w src/ -- cargo run
+watch api:
+  watchexec -r -w apps/api/{{api}} -- cargo run -p {{api}}
 
-test-watch:
-  watchexec -r -w src/ -- cargo test
+test-watch api:
+  watchexec -r -w apps/api/{{api}} -- cargo test -p {{api}}
 
 cover:
-  cargo tarpaulin -o Html
+  cargo tarpaulin -o Html --workspace --output-dir coverage/
 
-psql:
-  docker compose exec -it postgres psql -U postgres
-
-migrate direction:
-  #!/usr/bin/env bash
-  case {{direction}} in
-    up)   sqlx migrate run ;;
-    down) sqlx migrate revert ;;
-    zero) sqlx migrate revert --target-version 0 ;;
-    *) echo "error: migrations unknown direction" >&2 && exit 1 ;;
-  esac
+psql database:
+  docker compose exec -it postgres psql -U postgres -d {{database}}
