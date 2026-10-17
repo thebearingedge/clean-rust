@@ -29,3 +29,6 @@ claims.workspace = true
 http-body-util.workspace = true
 serde-json-assert.workspace = true
 tower.workspace = true
+
+[lints]
+workspace = true

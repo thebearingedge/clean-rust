@@ -3,7 +3,6 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use tracing;
 
 use storage::storage_error::StorageError;
 
@@ -14,10 +13,12 @@ pub struct ApiError {
 }
 
 impl ApiError {
+    #[must_use]
     pub fn message(status: StatusCode, message: &str) -> Self {
         Self::json(status, serde_json::json!({ "error": message }))
     }
 
+    #[must_use]
     pub fn json(status: StatusCode, body: serde_json::Value) -> Self {
         Self { status, body }
     }

@@ -4,11 +4,15 @@ use opentelemetry_sdk::{Resource, trace::SdkTracerProvider};
 use tracing_opentelemetry::layer;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
+/// # Panics
+///
+/// Will panic if [`SpanExporter`] configuration is invalid.
+#[must_use]
 pub fn get_tracer_provider(service_name: &'static str) -> SdkTracerProvider {
     let exporter = SpanExporter::builder()
         .with_tonic()
         .build()
-        .expect("OTLP exporter");
+        .expect("invalid otlp exporter configuration");
 
     let provider = SdkTracerProvider::builder()
         .with_batch_exporter(exporter)

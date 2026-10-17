@@ -29,6 +29,11 @@ impl TodosInteractor {
         Self { repository }
     }
 
+    /// # Errors
+    ///
+    /// Returns [`TodoError::EmptyTask`] if the task fails validation (see
+    /// [`NewTodoModel::has_valid_task`]), and [`TodoError::Storage`] if the
+    /// repository cannot persist the todo.
     #[instrument(skip_all)]
     pub async fn add(&self, todo: &NewTodoModel) -> Result<TodoModel, TodoError> {
         if !todo.has_valid_task() {

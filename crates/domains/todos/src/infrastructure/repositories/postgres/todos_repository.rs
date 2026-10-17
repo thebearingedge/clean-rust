@@ -15,6 +15,7 @@ pub struct TodosRepository {
 }
 
 impl TodosRepository {
+    #[must_use]
     pub fn new(service: PgPool) -> Self {
         Self { service }
     }

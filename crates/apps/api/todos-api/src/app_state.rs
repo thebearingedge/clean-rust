@@ -15,6 +15,10 @@ pub struct AppState {
 }
 
 impl AppState {
+    /// # Panics
+    ///
+    /// Will panic if JSON schema validator construction fails.
+    #[must_use]
     pub fn new(postgres: PgPool) -> Self {
         let interactors = Interactors {
             todos: TodosInteractor::new(Arc::new(TodosRepository::new(postgres))),
@@ -22,9 +26,10 @@ impl AppState {
 
         let schemas = Schemas {
             add_todo: Validator::new(
-                &serde_json::to_value(schemars::schema_for!(NewTodoHttp)).unwrap(),
+                &serde_json::to_value(schemars::schema_for!(NewTodoHttp))
+                    .expect("invalid json value for NewTodoHttp schema"),
             )
-            .unwrap(),
+            .expect("invalid json validator for add_todo"),
         };
 
         Self {
