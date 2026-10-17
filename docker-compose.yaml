@@ -9,13 +9,23 @@ services:
     tmpfs: /var/lib/postgresql
     volumes:
       - ./services/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
-      - ./services/postgres/01-create-databases.sql:/docker-entrypoint-initdb.d/01-create-databases.sql:ro
+      - ./services/postgres/01_create_databases.sql:/docker-entrypoint-initdb.d/01_create_databases.sql:ro
     ports:
-      - 5432:5432
+      - 127.0.0.1:5432:5432
     healthcheck:
       test: pg_isready -h 127.0.0.1 -U postgres -d postgres || exit 1
       interval: 1s
       start_period: 5s
+
+  pgweb:
+    image: docker.io/sosedoff/pgweb:0.17.0
+    environment:
+      DATABASE_URL: postgres://postgres:password@postgres/postgres?sslmode=disable
+    ports:
+      - 127.0.0.1:8081:8081
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   opentelemetry-collector:
     image: docker.io/otel/opentelemetry-collector:0.162.0
