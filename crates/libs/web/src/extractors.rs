@@ -40,7 +40,7 @@ where
         let t: T = serde_json::from_value(data).map_err(|e| {
             ApiError::message(
                 StatusCode::UNPROCESSABLE_ENTITY,
-                &format!("deserialization failed: {}", e),
+                &format!("deserialization failed: {e}"),
             )
         })?;
 

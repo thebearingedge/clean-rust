@@ -6,6 +6,9 @@ init:
   cargo install --locked watchexec-cli@2.8.0
   cargo install --locked cargo-llvm-cov@0.9.1
 
+cargo-lint:
+  cargo clippy --workspace --all-targets -- -D warnings
+
 cargo-run app *args:
   set -a; . tools/envs/{{app}}.env; set +a; \
   watchexec -r -w crates -e rs,toml,sql -- cargo run -p {{app}} -- {{args}}

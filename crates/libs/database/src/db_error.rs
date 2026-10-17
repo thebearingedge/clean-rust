@@ -18,6 +18,7 @@ impl DbError {
         }
     }
 
+    #[must_use]
     pub fn is_unavailable(&self) -> bool {
         matches!(
             self.source,
@@ -25,6 +26,7 @@ impl DbError {
         )
     }
 
+    #[must_use]
     pub fn is_conflict(&self) -> bool {
         self.source
             .as_database_error()
@@ -33,6 +35,9 @@ impl DbError {
 }
 
 pub trait DbContext<T> {
+    /// # Errors
+    ///
+    /// Wraps a [`sqlx::Error`] with additional context.
     fn db_context(self, context: impl Into<String>) -> Result<T, DbError>;
 }
 

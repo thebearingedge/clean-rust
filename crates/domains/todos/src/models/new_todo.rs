@@ -7,6 +7,7 @@ pub struct NewTodoModel {
 }
 
 impl NewTodoModel {
+    #[must_use]
     pub fn has_valid_task(&self) -> bool {
         self.task.trim().len() > 1
     }

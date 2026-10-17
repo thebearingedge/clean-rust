@@ -1,5 +1,8 @@
 use tokio::signal;
 
+/// # Panics
+///
+/// Will panic if Ctrl+C handler cannot be installed
 pub async fn shutdown_signal() {
     let ctrl_c = async {
         signal::ctrl_c()
@@ -19,8 +22,8 @@ pub async fn shutdown_signal() {
     let terminate = std::future::pending::<()>();
 
     tokio::select! {
-        _ = ctrl_c => {},
-        _ = terminate => {},
+        () = ctrl_c => {},
+        () = terminate => {},
     }
 
     tracing::info!("shutdown signal received, draining connections...");
