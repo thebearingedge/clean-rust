@@ -1,37 +1,36 @@
+use std::sync::Arc;
+
 use thiserror::Error;
 use tracing::instrument;
 
-use database::db_error::DbError;
+use storage::storage_error::StorageError;
 
-use crate::{models::todo::TodoModel, repositories::todos_repository::TodosRepository};
+use crate::{
+    models::{NewTodoModel, TodoModel},
+    use_cases::repositories::TodosRepository,
+};
 
 #[derive(Debug, Error)]
 pub enum TodoError {
     #[error("task must not be empty")]
     EmptyTask,
 
-    #[error("new todo must not have an id")]
-    IdNotAllowed,
-
     #[error(transparent)]
-    Db(#[from] DbError),
+    Storage(#[from] StorageError),
 }
 
 #[derive(Clone, Debug)]
 pub struct TodosInteractor {
-    repository: TodosRepository,
+    repository: Arc<dyn TodosRepository>,
 }
 
 impl TodosInteractor {
-    pub fn new(repository: TodosRepository) -> Self {
+    pub fn new(repository: Arc<dyn TodosRepository>) -> Self {
         Self { repository }
     }
 
     #[instrument(skip_all)]
-    pub async fn add(&self, todo: &TodoModel) -> Result<TodoModel, TodoError> {
-        if todo.has_valid_id() {
-            return Err(TodoError::IdNotAllowed);
-        }
+    pub async fn add(&self, todo: &NewTodoModel) -> Result<TodoModel, TodoError> {
         if !todo.has_valid_task() {
             return Err(TodoError::EmptyTask);
         }

@@ -4,7 +4,7 @@ use opentelemetry_sdk::{Resource, trace::SdkTracerProvider};
 use tracing_opentelemetry::layer;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
-pub fn get_tracer_provider() -> SdkTracerProvider {
+pub fn get_tracer_provider(service_name: &'static str) -> SdkTracerProvider {
     let exporter = SpanExporter::builder()
         .with_tonic()
         .build()
@@ -14,12 +14,12 @@ pub fn get_tracer_provider() -> SdkTracerProvider {
         .with_batch_exporter(exporter)
         .with_resource(
             Resource::builder_empty()
-                .with_attribute(KeyValue::new("service.name", "clean-rust"))
+                .with_attribute(KeyValue::new("service.name", service_name))
                 .build(),
         )
         .build();
 
-    let tracer = provider.tracer("clean-rust");
+    let tracer = provider.tracer(service_name);
 
     tracing_subscriber::registry()
         .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))

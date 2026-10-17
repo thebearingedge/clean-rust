@@ -1,9 +1,13 @@
+use async_trait::async_trait;
 use sqlx::{self, PgPool};
 use tracing::instrument;
 
-use database::db_error::{DbContext, DbError};
+use database::db_error::DbContext;
+use storage::storage_error::StorageError;
 
-use crate::models::todo::TodoModel;
+use crate::models::{NewTodoModel, TodoModel};
+use crate::repositories::postgres::todo_row::TodoRow;
+use crate::use_cases::repositories::TodosRepository as Interface;
 
 #[derive(Clone, Debug)]
 pub struct TodosRepository {
@@ -14,10 +18,13 @@ impl TodosRepository {
     pub fn new(service: PgPool) -> Self {
         Self { service }
     }
+}
 
+#[async_trait]
+impl Interface for TodosRepository {
     #[instrument(skip_all)]
-    pub async fn add(&self, todo: &TodoModel) -> Result<TodoModel, DbError> {
-        sqlx::query_as::<_, TodoModel>(
+    async fn add(&self, todo: &NewTodoModel) -> Result<TodoModel, StorageError> {
+        sqlx::query_as::<_, TodoRow>(
             "
             insert into todos (
                 task,
@@ -35,6 +42,8 @@ impl TodosRepository {
         .bind(todo.completed_at)
         .fetch_one(&self.service)
         .await
+        .map(TodoModel::from)
         .db_context("inserting todo")
+        .map_err(StorageError::from)
     }
 }

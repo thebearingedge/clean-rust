@@ -21,11 +21,7 @@ impl From<TodoError> for AppError {
                 StatusCode::BAD_REQUEST,
                 "task must not be empty",
             )),
-            TodoError::IdNotAllowed => Self(ApiError::message(
-                StatusCode::UNPROCESSABLE_ENTITY,
-                "new todo may not have an id",
-            )),
-            TodoError::Db(e) => Self(e.into()),
+            TodoError::Storage(e) => Self(e.into()),
         }
     }
 }

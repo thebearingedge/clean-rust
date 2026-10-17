@@ -6,7 +6,7 @@ use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{app_error::AppError, app_state::AppState};
-use todos::TodoModel;
+use todos::{NewTodoModel, TodoModel};
 use web::ValidatedJson;
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -16,11 +16,11 @@ pub struct NewTodoHttp {
     task: String,
 }
 
-impl From<NewTodoHttp> for TodoModel {
+impl From<NewTodoHttp> for NewTodoModel {
     fn from(http: NewTodoHttp) -> Self {
-        TodoModel {
+        NewTodoModel {
             task: http.task,
-            ..TodoModel::default()
+            completed_at: None,
         }
     }
 }
@@ -28,9 +28,9 @@ impl From<NewTodoHttp> for TodoModel {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TodoHttp {
-    todo_id: Option<Uuid>,
+    todo_id: Uuid,
     task: String,
-    updated_at: Option<DateTime<Utc>>,
+    updated_at: DateTime<Utc>,
     completed_at: Option<DateTime<Utc>>,
 }
 

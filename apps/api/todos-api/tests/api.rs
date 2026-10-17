@@ -4,6 +4,8 @@ mod tests {
         body::Body,
         http::{Method, Request, Response, StatusCode, header},
     };
+    use chrono::DateTime;
+    use claims::assert_ok;
     use http_body_util::BodyExt;
     use serde_json::Value;
     use serde_json_assert::assert_json_include;
@@ -11,6 +13,7 @@ mod tests {
     use tower::ServiceExt;
 
     use todos_api::{api::create_todos_api, app_state::AppState};
+    use uuid::Uuid;
 
     fn build_request(method: Method, uri: &'static str, data: Option<Value>) -> Request<Body> {
         let builder = Request::builder().method(method).uri(uri);
@@ -78,6 +81,22 @@ mod tests {
 
         assert_eq!(status, StatusCode::CREATED);
         assert_eq!(content_type, "application/json".to_string());
+
+        let todo_id = data
+            .as_ref()
+            .and_then(|d| d["todoId"].as_str())
+            .expect("todoId should be a string");
+        let todo_id = Uuid::parse_str(todo_id).expect("todoId should be a valid uuid");
+
+        assert_eq!(todo_id.get_version_num(), 7);
+
+        let updated_at = data
+            .as_ref()
+            .and_then(|d| d["updatedAt"].as_str())
+            .expect("updatedAt should be a string");
+
+        assert_ok!(DateTime::parse_from_rfc3339(updated_at));
+
         assert_json_include!(actual: data, expected: serde_json::json!({
             "task": "write some rust!",
             "completedAt": null

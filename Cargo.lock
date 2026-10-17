@@ -299,6 +299,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "claims"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bba18ee93d577a8428902687bcc2b6b45a56b1981a1f6d779731c86cc4c5db18"
+
+[[package]]
 name = "cmake"
 version = "0.1.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -426,6 +432,7 @@ name = "database"
 version = "0.1.0"
 dependencies = [
  "sqlx",
+ "storage",
  "thiserror",
 ]
 
@@ -2424,6 +2431,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
+name = "storage"
+version = "0.1.0"
+dependencies = [
+ "thiserror",
+]
+
+[[package]]
 name = "stringprep"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2563,11 +2577,13 @@ checksum = "fd3ca314f692efd6c868f8408f53fe444634a845f96c028b97d35f6a1f79f0ee"
 name = "todos"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "axum",
  "chrono",
  "database",
  "serde_json",
  "sqlx",
+ "storage",
  "thiserror",
  "tracing",
  "uuid",
@@ -2580,6 +2596,7 @@ dependencies = [
  "anyhow",
  "axum",
  "chrono",
+ "claims",
  "database",
  "http-body-util",
  "jsonschema",
@@ -3077,10 +3094,10 @@ name = "web"
 version = "0.1.0"
 dependencies = [
  "axum",
- "database",
  "jsonschema",
  "serde",
  "serde_json",
+ "storage",
  "tokio",
  "tracing",
 ]

@@ -5,7 +5,7 @@ use axum::{
 };
 use tracing;
 
-use database::db_error::DbError;
+use storage::storage_error::StorageError;
 
 #[derive(Debug)]
 pub struct ApiError {
@@ -29,14 +29,21 @@ impl IntoResponse for ApiError {
     }
 }
 
-impl From<DbError> for ApiError {
-    fn from(e: DbError) -> Self {
-        tracing::error!(error = ?e, "database error");
-        let (status, message) = if e.is_unavailable() {
-            (StatusCode::SERVICE_UNAVAILABLE, "service unavailable")
-        } else {
-            (StatusCode::INTERNAL_SERVER_ERROR, "internal server error")
-        };
-        Self::message(status, message)
+impl From<StorageError> for ApiError {
+    fn from(e: StorageError) -> Self {
+        match &e {
+            StorageError::Unavailable(_) => {
+                tracing::error!(error = ?e, "storage unavailable");
+                ApiError::message(StatusCode::SERVICE_UNAVAILABLE, "service unavailable")
+            }
+            StorageError::Conflict(_) => {
+                tracing::warn!(error = ?e, "storage conflict");
+                ApiError::message(StatusCode::CONFLICT, "conflict")
+            }
+            StorageError::Other(_) => {
+                tracing::error!(error = ?e, "storage error");
+                ApiError::message(StatusCode::INTERNAL_SERVER_ERROR, "internal server error")
+            }
+        }
     }
 }

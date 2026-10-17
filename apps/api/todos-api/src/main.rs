@@ -5,7 +5,7 @@ use sqlx::postgres::PgPoolOptions;
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 
-use telemetry::init_telemetry::get_tracer_provider;
+use telemetry::provider::get_tracer_provider;
 use web::shutdown_signal;
 
 use todos::MIGRATOR;
@@ -13,7 +13,7 @@ use todos_api::{api::create_todos_api, app_state::AppState};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let collector = get_tracer_provider();
+    let tracer_provider = get_tracer_provider("todos_api");
 
     tracing::info!("connecting to postgres...");
 
@@ -50,7 +50,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("server stopped, cleaning up");
 
     pool.close().await;
-    collector.shutdown()?;
+    tracer_provider.shutdown()?;
 
     shutdown?;
 

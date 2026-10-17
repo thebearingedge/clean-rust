@@ -25,6 +25,7 @@ tracing.workspace = true
 uuid.workspace = true
 
 [dev-dependencies]
-tower.workspace = true
+claims.workspace = true
 http-body-util.workspace = true
 serde-json-assert.workspace = true
+tower.workspace = true

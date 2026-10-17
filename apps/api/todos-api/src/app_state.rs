@@ -1,7 +1,9 @@
+use std::sync::Arc;
+
 use jsonschema::Validator;
 use sqlx::PgPool;
 
-use todos::{TodosInteractor, TodosRepository};
+use todos::{TodosInteractor, repositories::postgres::TodosRepository};
 use web::HasSchema;
 
 use crate::controller::NewTodoHttp;
@@ -15,7 +17,7 @@ pub struct AppState {
 impl AppState {
     pub fn new(postgres: PgPool) -> Self {
         let interactors = Interactors {
-            todos: TodosInteractor::new(TodosRepository::new(postgres)),
+            todos: TodosInteractor::new(Arc::new(TodosRepository::new(postgres))),
         };
 
         let schemas = Schemas {

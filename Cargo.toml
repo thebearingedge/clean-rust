@@ -8,16 +8,18 @@ edition = "2024"
 publish = false
 
 [workspace.dependencies]
-
 database = { path = "libs/database" }
 telemetry = { path = "libs/telemetry" }
+todos = { path = "domains/todos" }
+storage = { path = "libs/storage" }
 util = { path = "libs/util" }
 web = { path = "libs/web" }
-todos = { path = "domains/todos" }
 
 anyhow = "1.0.104"
+async-trait = "0.1.92"
 axum = { version = "0.8.9", features = ["macros"] }
 chrono = { version = "0.4.45", features = ["serde"] }
+claims = "0.8"
 http-body-util = "0.1.5"
 jsonschema = "0.58.6"
 opentelemetry = "0.33.1"

@@ -1,9 +1,9 @@
+mod infrastructure;
 mod models;
-mod repositories;
 mod use_cases;
 
-pub use models::todo::TodoModel;
-pub use repositories::todos_repository::TodosRepository;
+pub use infrastructure::repositories;
+pub use models::{NewTodoModel, TodoModel};
 pub use use_cases::todos_interactor::{TodoError, TodosInteractor};
 
-pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!();
+pub use infrastructure::repositories::postgres::MIGRATOR;
