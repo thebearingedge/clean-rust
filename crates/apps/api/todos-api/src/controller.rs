@@ -2,7 +2,6 @@ use axum::{Json, extract::State, http::StatusCode};
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use tracing::instrument;
 use uuid::Uuid;
 
 use crate::{app_error::AppError, app_state::AppState};
@@ -45,7 +44,6 @@ impl From<TodoModel> for TodoHttp {
     }
 }
 
-#[instrument(skip_all)]
 pub async fn add_todo(
     State(app_state): State<AppState>,
     ValidatedJson(new_todo): ValidatedJson<NewTodoHttp>,
