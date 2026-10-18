@@ -21,6 +21,7 @@ async-trait = "0.1.92"
 axum = { version = "0.8.9", features = ["macros"] }
 chrono = { version = "0.4.45", features = ["serde"] }
 claims = "0.8"
+futures-util = "0.3.34"
 http = "1.5"
 http-body-util = "0.1.5"
 jsonschema = "0.58.6"
