@@ -4,7 +4,27 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
+use schemars::JsonSchema;
+use serde::Serialize;
 use storage::storage_error::StorageError;
+
+#[derive(Serialize, JsonSchema)]
+pub struct ErrorBody {
+    pub error: String,
+}
+
+#[derive(Serialize, JsonSchema)]
+pub struct ValidationDetail {
+    pub path: String,
+    pub message: String,
+}
+
+#[derive(Serialize, JsonSchema)]
+pub struct ValidationErrorBody {
+    pub error: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<Vec<ValidationDetail>>,
+}
 
 #[derive(Debug)]
 pub struct ApiError {
@@ -13,14 +33,23 @@ pub struct ApiError {
 }
 
 impl ApiError {
-    #[must_use]
-    pub fn message(status: StatusCode, message: &str) -> Self {
-        Self::json(status, serde_json::json!({ "error": message }))
+    /// # Panics
+    ///
+    /// Will panic when `body` cannot be serialized to JSON.
+    pub fn new(status: StatusCode, body: &impl Serialize) -> Self {
+        let body = serde_json::to_value(body)
+            .expect("error bodies are plain structs and always serialize");
+        Self { status, body }
     }
 
     #[must_use]
-    pub fn json(status: StatusCode, body: serde_json::Value) -> Self {
-        Self { status, body }
+    pub fn message(status: StatusCode, message: &str) -> Self {
+        Self::new(
+            status,
+            &ErrorBody {
+                error: message.to_owned(),
+            },
+        )
     }
 }
 

@@ -7,9 +7,11 @@ publish.workspace = true
 [dependencies]
 storage.workspace = true
 
+aide.workspace = true
 axum.workspace = true
 jsonschema.workspace = true
-serde.workspace = true
+schemars.workspace = true
+serde = { workspace = true, features = ["rc"] }
 serde_json.workspace = true
 tokio.workspace = true
 tower-http.workspace = true

@@ -1,3 +1,4 @@
+use aide::OperationOutput;
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -24,4 +25,8 @@ impl From<TodoError> for AppError {
             TodoError::Storage(e) => Self(e.into()),
         }
     }
+}
+
+impl OperationOutput for AppError {
+    type Inner = Self;
 }

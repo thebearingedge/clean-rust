@@ -1,5 +1,7 @@
 use std::net::SocketAddr;
+use std::time::Duration;
 
+use anyhow::Context;
 use axum::serve;
 use sqlx::postgres::PgPoolOptions;
 use tokio::net::TcpListener;
@@ -22,14 +24,13 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("connecting to postgres...");
 
+    let database_url = std::env::var("DATABASE_URL").context("DATABASE_URL must be set")?;
+
     let pool = PgPoolOptions::new()
         .min_connections(2)
         .max_connections(10)
-        .connect(
-            std::env::var("DATABASE_URL")
-                .unwrap_or("postgres://postgres:password@localhost/todos".to_string())
-                .as_str(),
-        )
+        .acquire_timeout(Duration::from_secs(3))
+        .connect(&database_url)
         .await?;
 
     tracing::info!("connected to postgres. running migrations...");

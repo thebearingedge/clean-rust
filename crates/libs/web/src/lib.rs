@@ -2,6 +2,7 @@ mod api_error;
 mod extractors;
 mod graceful_shutdown;
 pub mod middleware;
+pub mod openapi;
 
 pub use api_error::ApiError;
 pub use extractors::{HasSchema, ValidatedJson};

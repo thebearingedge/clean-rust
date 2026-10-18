@@ -24,7 +24,7 @@ impl From<NewTodoHttp> for NewTodoModel {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TodoHttp {
     todo_id: Uuid,
