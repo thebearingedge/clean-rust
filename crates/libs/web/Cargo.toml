@@ -6,6 +6,7 @@ publish.workspace = true
 
 [dependencies]
 storage.workspace = true
+telemetry.workspace = true
 
 aide.workspace = true
 axum.workspace = true

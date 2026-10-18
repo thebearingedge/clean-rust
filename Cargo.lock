@@ -2574,9 +2574,11 @@ dependencies = [
 name = "telemetry"
 version = "0.1.0"
 dependencies = [
+ "http",
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry_sdk",
+ "tracing",
  "tracing-opentelemetry",
  "tracing-subscriber",
 ]
@@ -3154,6 +3156,7 @@ dependencies = [
  "serde",
  "serde_json",
  "storage",
+ "telemetry",
  "tokio",
  "tower-http 0.7.1",
  "tracing",

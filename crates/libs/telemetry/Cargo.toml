@@ -5,9 +5,11 @@ edition.workspace = true
 publish.workspace = true
 
 [dependencies]
+http.workspace = true
 opentelemetry.workspace = true
 opentelemetry-otlp.workspace = true
 opentelemetry_sdk.workspace = true
+tracing.workspace = true
 tracing-opentelemetry.workspace = true
 tracing-subscriber.workspace = true
 
