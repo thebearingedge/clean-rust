@@ -1,6 +1,7 @@
 mod api_error;
 mod extractors;
 mod graceful_shutdown;
+pub mod health;
 pub mod middleware;
 pub mod openapi;
 

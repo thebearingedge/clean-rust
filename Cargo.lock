@@ -3151,6 +3151,7 @@ version = "0.1.0"
 dependencies = [
  "aide",
  "axum",
+ "futures-util",
  "jsonschema",
  "schemars",
  "serde",
@@ -3158,6 +3159,7 @@ dependencies = [
  "storage",
  "telemetry",
  "tokio",
+ "tower",
  "tower-http 0.7.1",
  "tracing",
 ]

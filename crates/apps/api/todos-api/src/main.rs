@@ -6,11 +6,15 @@ use axum::serve;
 use sqlx::postgres::PgPoolOptions;
 use tokio::net::TcpListener;
 
+use database;
 use telemetry::provider::init_tracer_provider;
-use web::middleware::with_http_tracing;
-use web::shutdown_signal;
-
 use todos::MIGRATOR;
+use web::{
+    health::{self, HealthCheck},
+    middleware::with_http_tracing,
+    shutdown_signal,
+};
+
 use todos_api::{api::create_todos_api, app_state::AppState};
 
 #[tokio::main]
@@ -35,7 +39,13 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("migrations up to date");
 
-    let router = with_http_tracing(create_todos_api(AppState::new(pool.clone())));
+    let router = with_http_tracing(create_todos_api(AppState::new(pool.clone()))).merge(
+        health::router(vec![HealthCheck::with_resource(
+            "postgres",
+            pool.clone(),
+            database::health::ping,
+        )]),
+    );
 
     let address: SocketAddr = std::env::var("LISTEN_ADDRESS")
         .unwrap_or("0.0.0.0:3000".to_string())
