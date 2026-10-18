@@ -1,14 +1,17 @@
-use opentelemetry::{KeyValue, trace::TracerProvider};
+use opentelemetry::{global, trace::TracerProvider};
 use opentelemetry_otlp::SpanExporter;
-use opentelemetry_sdk::{Resource, trace::SdkTracerProvider};
+use opentelemetry_sdk::{Resource, propagation::TraceContextPropagator, trace::SdkTracerProvider};
 use tracing_opentelemetry::layer;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
 /// # Panics
 ///
 /// Will panic if [`SpanExporter`] configuration is invalid.
+/// Will panic if called twice. Installs the global subscriber.
 #[must_use]
-pub fn get_tracer_provider(service_name: &'static str) -> SdkTracerProvider {
+pub fn init_tracer_provider(service_name: &'static str) -> SdkTracerProvider {
+    global::set_text_map_propagator(TraceContextPropagator::new());
+
     let exporter = SpanExporter::builder()
         .with_tonic()
         .build()
@@ -16,11 +19,7 @@ pub fn get_tracer_provider(service_name: &'static str) -> SdkTracerProvider {
 
     let provider = SdkTracerProvider::builder()
         .with_batch_exporter(exporter)
-        .with_resource(
-            Resource::builder_empty()
-                .with_attribute(KeyValue::new("service.name", service_name))
-                .build(),
-        )
+        .with_resource(Resource::builder().with_service_name(service_name).build())
         .build();
 
     let tracer = provider.tracer(service_name);
