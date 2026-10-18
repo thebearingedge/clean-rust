@@ -10,6 +10,7 @@ web.workspace = true
 telemetry.workspace = true
 database.workspace = true
 
+aide.workspace = true
 anyhow.workspace = true
 axum.workspace = true
 chrono.workspace = true

@@ -24,6 +24,10 @@ cargo-test app *args:
   set -a; . tools/envs/{{app}}.env; set +a; \
   cargo test -p {{app}} {{args}}
 
+cargo-tdd app *args:
+  set -a; . tools/envs/{{app}}.env; set +a; \
+  watchexec -r -w crates -e rs,toml,sql -- cargo test -p {{app}} -- {{args}}
+
 cargo-cover app:
   set -a; . tools/envs/{{app}}.env; set +a; \
   cargo llvm-cov --no-report -p {{app}}
