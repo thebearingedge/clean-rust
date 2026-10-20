@@ -22,6 +22,7 @@ impl From<TodoError> for AppError {
                 StatusCode::BAD_REQUEST,
                 "task must not be empty",
             )),
+            TodoError::NotFound => Self(ApiError::message(StatusCode::NOT_FOUND, "todo not found")),
             TodoError::Storage(e) => Self(e.into()),
         }
     }

@@ -1,0 +1,1 @@
+drop index todos_updated_at_todo_id_idx;
