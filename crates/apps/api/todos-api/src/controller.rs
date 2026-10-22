@@ -29,13 +29,13 @@ impl From<NewTodoBody> for NewTodoModel {
     }
 }
 
-#[derive(Serialize, JsonSchema)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TodoHttp {
-    todo_id: Uuid,
-    task: String,
-    updated_at: DateTime<Utc>,
-    completed_at: Option<DateTime<Utc>>,
+    pub todo_id: Uuid,
+    pub task: String,
+    pub updated_at: DateTime<Utc>,
+    pub completed_at: Option<DateTime<Utc>>,
 }
 
 impl From<TodoModel> for TodoHttp {
@@ -120,7 +120,7 @@ struct CursorToken {
 pub struct ListTodosQuery {
     #[validate(length(max = 50))]
     todo_id: Option<Vec<Uuid>>,
-    completed: Option<bool>,
+    is_completed: Option<bool>,
     sort: Option<SortKeyHttp>,
     order: Option<OrderHttp>,
     #[validate(range(min = 1, max = 200))]
@@ -164,7 +164,7 @@ impl TryFrom<ListTodosQuery> for ListParams {
         Ok(Self {
             filter: TodoFilter {
                 todo_id: query.todo_id,
-                is_completed: query.completed,
+                is_completed: query.is_completed,
                 ..TodoFilter::default()
             },
             sort: Sort {
@@ -179,11 +179,11 @@ impl TryFrom<ListTodosQuery> for ListParams {
     }
 }
 
-#[derive(Serialize, JsonSchema)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TodoPageHttp {
-    items: Vec<TodoHttp>,
-    next: Option<String>,
+    pub items: Vec<TodoHttp>,
+    pub next: Option<String>,
 }
 
 impl TodoPageHttp {

@@ -22,7 +22,7 @@ pub struct TodoModel {
     pub completed_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct TodoFilter {
     pub todo_id: Option<Vec<Uuid>>,
     pub is_completed: Option<bool>,

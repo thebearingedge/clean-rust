@@ -1,33 +1,21 @@
+mod common;
+
 #[cfg(test)]
 mod tests {
+    use super::common::{create_todo_id, get_response_parts, get_todo_ids};
+
     use axum::{
         body::Body,
-        http::{Method, Request, Response, StatusCode, header},
+        http::{Method, Request, StatusCode, header},
     };
-    use chrono::DateTime;
+    use chrono::{DateTime, Utc};
     use claims::assert_ok;
-    use http_body_util::BodyExt;
-    use serde_json::Value;
     use serde_json_assert::assert_json_include;
     use sqlx::PgPool;
     use tower::ServiceExt;
-
-    use todos_api::{api::create_todos_api, app_state::AppState};
     use uuid::Uuid;
 
-    async fn get_response_parts(res: Response<Body>) -> (StatusCode, String, Option<Value>) {
-        let status = res.status();
-        let content_type = res
-            .headers()
-            .get(header::CONTENT_TYPE)
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .to_string();
-        let bytes = res.into_body().collect().await.unwrap().to_bytes();
-        let json = serde_json::from_slice(&bytes).ok();
-        (status, content_type, json)
-    }
+    use todos_api::{api::create_todos_api, app_state::AppState, controller::TodoPageHttp};
 
     #[sqlx::test(migrator = "todos::MIGRATOR")]
     async fn serves_openapi_document(postgres: PgPool) {
@@ -289,15 +277,6 @@ mod tests {
         }))
     }
 
-    fn get_ids(data: &Value) -> Vec<String> {
-        data["items"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|item| item["todoId"].as_str().unwrap().to_owned())
-            .collect()
-    }
-
     #[sqlx::test(migrator = "todos::MIGRATOR", fixtures("list_todos"))]
     async fn returns_todos_ordered_by_id(postgres: PgPool) {
         let res = create_todos_api(AppState::new(postgres))
@@ -315,10 +294,20 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(content_type, "application/json");
 
-        let ids = get_ids(&data.expect("should have returned seeded todos"));
+        let ids = get_todo_ids(&data.expect("should have returned seeded todos"));
 
         assert_eq!(ids.len(), 5);
         assert!(ids.is_sorted());
+        assert_eq!(
+            ids,
+            vec![
+                create_todo_id(1).to_string(),
+                create_todo_id(2).to_string(),
+                create_todo_id(3).to_string(),
+                create_todo_id(4).to_string(),
+                create_todo_id(5).to_string(),
+            ]
+        );
     }
 
     #[sqlx::test(migrator = "todos::MIGRATOR", fixtures("list_todos"))]
@@ -376,5 +365,124 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(content_type, "application/json");
         assert_eq!(cursor, "null");
+    }
+
+    #[sqlx::test(migrator = "todos::MIGRATOR", fixtures("list_todos.sql"))]
+    async fn returns_completed_todos(postgres: PgPool) {
+        let res = create_todos_api(AppState::new(postgres))
+            .oneshot(
+                Request::builder()
+                    .method(Method::GET)
+                    .uri("/v1/todos?isCompleted=true")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let (status, content_type, data) = get_response_parts(res).await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(content_type, "application/json");
+
+        let todo_page = serde_json::from_value::<TodoPageHttp>(data.unwrap()).unwrap();
+
+        assert_eq!(todo_page.items.len(), 2);
+        assert_eq!(todo_page.next, None);
+
+        todo_page
+            .items
+            .iter()
+            .for_each(|todo| assert_ne!(todo.completed_at, None));
+    }
+
+    #[sqlx::test(migrator = "todos::MIGRATOR", fixtures("list_todos.sql"))]
+    async fn returns_incomplete_todos(postgres: PgPool) {
+        let res = create_todos_api(AppState::new(postgres))
+            .oneshot(
+                Request::builder()
+                    .method(Method::GET)
+                    .uri("/v1/todos?isCompleted=false")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let (status, content_type, data) = get_response_parts(res).await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(content_type, "application/json");
+
+        let todo_page = serde_json::from_value::<TodoPageHttp>(data.unwrap()).unwrap();
+
+        assert_eq!(todo_page.items.len(), 3);
+        assert_eq!(todo_page.next, None);
+
+        todo_page
+            .items
+            .iter()
+            .for_each(|todo| assert_eq!(todo.completed_at, None));
+    }
+
+    #[sqlx::test(migrator = "todos::MIGRATOR", fixtures("list_todos.sql"))]
+    async fn sorts_todos_by_updated_at(postgres: PgPool) {
+        let res = create_todos_api(AppState::new(postgres))
+            .oneshot(
+                Request::builder()
+                    .method(Method::GET)
+                    .uri("/v1/todos?sort=updatedAt")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let (status, content_type, data) = get_response_parts(res).await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(content_type, "application/json");
+
+        let todo_page = serde_json::from_value::<TodoPageHttp>(data.unwrap()).unwrap();
+
+        assert_eq!(todo_page.items.len(), 5);
+        assert_eq!(todo_page.next, None);
+
+        let updated_dates = todo_page
+            .items
+            .iter()
+            .map(|todo| todo.updated_at)
+            .collect::<Vec<DateTime<Utc>>>();
+
+        assert!(updated_dates.is_sorted());
+    }
+
+    #[sqlx::test(migrator = "todos::MIGRATOR", fixtures("list_todos.sql"))]
+    async fn sorts_todos_by_todo_id(postgres: PgPool) {
+        let res = create_todos_api(AppState::new(postgres))
+            .oneshot(
+                Request::builder()
+                    .method(Method::GET)
+                    .uri("/v1/todos?order=desc")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let (status, content_type, data) = get_response_parts(res).await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(content_type, "application/json");
+
+        let todo_page = serde_json::from_value::<TodoPageHttp>(data.unwrap()).unwrap();
+
+        assert_eq!(todo_page.items.len(), 5);
+        assert_eq!(todo_page.next, None);
+
+        let todo_ids = todo_page
+            .items
+            .iter()
+            .rev()
+            .map(|todo| todo.todo_id)
+            .collect::<Vec<Uuid>>();
+
+        assert!(todo_ids.is_sorted());
     }
 }
