@@ -1,8 +1,6 @@
-use std::pin::Pin;
-
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use futures::{Stream, StreamExt};
+use futures::StreamExt;
 use sea_query::extension::postgres::PgExpr;
 use sea_query::{Expr, ExprTrait, Order, PostgresQueryBuilder, Query};
 use sea_query_sqlx::SqlxBinder;
@@ -16,7 +14,7 @@ use storage::storage_error::StorageError;
 use utils::pagination::{Cursor, Sort, SortOrder};
 
 use crate::models::todo::{NewTodoModel, TodoCursor, TodoFilter, TodoModel, TodoSortKey};
-use crate::use_cases::repositories::TodosRepository as Interface;
+use crate::use_cases::repositories::{TodoStream, TodosRepository as Interface};
 
 #[derive(sqlx::FromRow)]
 struct TodoRow {
@@ -81,7 +79,7 @@ impl Interface for TodosRepository {
         filter: &TodoFilter,
         sort: &Sort<TodoSortKey>,
         cursor: &Cursor<TodoCursor>,
-    ) -> Pin<Box<dyn Stream<Item = Result<TodoModel, StorageError>> + Send + '_>> {
+    ) -> TodoStream<'_> {
         let direction = match sort.order {
             SortOrder::Asc => Order::Asc,
             SortOrder::Desc => Order::Desc,

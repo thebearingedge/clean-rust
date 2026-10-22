@@ -3,10 +3,12 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-
 use schemars::JsonSchema;
 use serde::Serialize;
+
 use storage::storage_error::StorageError;
+
+use crate::cursor_token::CursorError;
 
 #[derive(Serialize, JsonSchema)]
 pub struct ErrorBody {
@@ -15,6 +17,11 @@ pub struct ErrorBody {
 
 #[derive(Serialize, JsonSchema)]
 pub struct ValidationDetail {
+    /// Where the problem is. A JSON Pointer such as `/task` for request bodies,
+    /// `?name=` for a query parameter (`?` alone for the query string as a whole),
+    /// and `{name}` for a path parameter.
+    /// A repeated query parameter adds the zero-based position of the bad value,
+    /// such as ?id[1]=”
     pub path: String,
     pub message: String,
 }
@@ -56,6 +63,12 @@ impl ApiError {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         (self.status, Json(self.body)).into_response()
+    }
+}
+
+impl From<CursorError> for ApiError {
+    fn from(e: CursorError) -> Self {
+        ApiError::message(StatusCode::UNPROCESSABLE_ENTITY, &e.to_string())
     }
 }
 

@@ -1,3 +1,3 @@
-pub mod todos_repository;
+mod todos_repository;
 
-pub use todos_repository::TodosRepository;
+pub use todos_repository::{TodoStream, TodosRepository};

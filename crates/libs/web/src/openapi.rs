@@ -10,6 +10,13 @@ pub async fn serve(Extension(api): Extension<Arc<OpenApi>>) -> impl IntoApiRespo
     Json(api)
 }
 
+pub fn standard_get_errors(op: TransformOperation<'_>) -> TransformOperation<'_> {
+    op.response::<400, Json<ErrorBody>>()
+        .response::<422, Json<ValidationErrorBody>>()
+        .response::<500, Json<ErrorBody>>()
+        .response::<503, Json<ErrorBody>>()
+}
+
 pub fn standard_post_errors(op: TransformOperation<'_>) -> TransformOperation<'_> {
     op.response::<400, Json<ErrorBody>>()
         .response::<415, Json<ErrorBody>>()

@@ -2224,6 +2224,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_html_form"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f0346d7a342ab90f405cfc08f25d15075f944f42fcabbc5eac923829fa6d228"
+dependencies = [
+ "form_urlencoded",
+ "indexmap",
+ "itoa",
+ "serde_core",
+ "zmij",
+]
+
+[[package]]
 name = "serde_json"
 version = "1.0.154"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2755,6 +2768,7 @@ dependencies = [
  "tower",
  "tower-http 0.7.1",
  "tracing",
+ "utils",
  "uuid",
  "web",
 ]
@@ -3257,17 +3271,27 @@ version = "0.1.0"
 dependencies = [
  "aide",
  "axum",
+ "base64 0.23.1",
+ "chrono",
+ "form_urlencoded",
  "futures-util",
+ "http-body-util",
  "jsonschema",
  "schemars",
  "serde",
+ "serde-json-assert",
+ "serde_html_form",
  "serde_json",
+ "serde_path_to_error",
+ "serde_urlencoded",
  "storage",
  "telemetry",
+ "thiserror",
  "tokio",
  "tower",
  "tower-http 0.7.1",
  "tracing",
+ "uuid",
 ]
 
 [[package]]
