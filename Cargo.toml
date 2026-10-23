@@ -12,15 +12,18 @@ todos = { path = "crates/domains/todos" }
 database = { path = "crates/libs/database" }
 telemetry = { path = "crates/libs/telemetry" }
 storage = { path = "crates/libs/storage" }
-util = { path = "crates/libs/util" }
+utils = { path = "crates/libs/utils" }
 web = { path = "crates/libs/web" }
 
-aide = { version = "0.15.1", features = ["axum", "axum-json"] }
+aide = { version = "0.15.1", features = ["axum", "axum-json", "axum-query"] }
 anyhow = "1.0.104"
 async-trait = "0.1.92"
 axum = { version = "0.8.9", features = ["macros"] }
+base64 = "0.23.1"
 chrono = { version = "0.4.45", features = ["serde"] }
 claims = "0.8"
+form_urlencoded = "1.2.2"
+futures = "0.3.34"
 futures-util = "0.3.34"
 http = "1.5"
 http-body-util = "0.1.5"
@@ -38,9 +41,25 @@ schemars = { version = "0.9", features = [
   "chrono04",
   "rust_decimal1",
 ] }
+sea-query = { version = "1.0.2", features = [
+  "backend-postgres",
+  "derive",
+  "postgres-array",
+  "with-chrono",
+  "with-uuid",
+] }
+sea-query-sqlx = { version = "0.9.1", features = [
+  "postgres-array",
+  "sqlx-postgres",
+  "with-chrono",
+  "with-uuid",
+] }
 serde = { version = "1.0.229" }
 serde-json-assert = "0.4.0"
+serde_html_form = "0.4.1"
 serde_json = "1.0.154"
+serde_path_to_error = "0.1.20"
+serde_urlencoded = "0.7.1"
 sqlx = { version = "0.9.0", default-features = false, features = [
   "chrono",
   "json",
@@ -55,6 +74,7 @@ tokio = { version = "1.53.2", features = ["full"] }
 tower = { version = "0.5.3", features = ["util"] }
 tower-http = { version = "0.7.1", features = ["trace"] }
 tracing = "0.1.44"
+tracing-futures = { version = "0.2.5", features = ["futures-03"] }
 tracing-opentelemetry = "0.34.0"
 tracing-subscriber = { version = "0.3.23", features = ["json", "env-filter"] }
 uuid = { version = "1.28.0", features = ["serde", "v7"] }

@@ -1,4 +1,3 @@
-mod todo_row;
 mod todos_repository;
 
 pub use todos_repository::TodosRepository;

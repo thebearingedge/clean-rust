@@ -1,9 +1,12 @@
 {
   "cSpell.words": [
     "interactor",
-    "interactors"
+    "interactors",
+    "oneshot"
   ],
   "editor.formatOnSave": true,
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
   "[rust]": {
     "editor.tabSize": 4
   }

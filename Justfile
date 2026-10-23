@@ -23,13 +23,13 @@ cargo-run app *args:
   set -a; . tools/envs/{{app}}.env; set +a; \
   watchexec -r -w crates -e rs,toml,sql -- cargo run -p {{app}} -- {{args}}
 
-cargo-test app *args:
-  set -a; . tools/envs/{{app}}.env; set +a; \
-  cargo test -p {{app}} {{args}}
+cargo-test crate *args:
+  set -a; . tools/envs/{{crate}}.env; set +a; \
+  cargo test -p {{crate}} {{args}}
 
-cargo-tdd app *args:
-  set -a; . tools/envs/{{app}}.env; set +a; \
-  watchexec -r -w crates -e rs,toml,sql -- cargo test -p {{app}} -- {{args}}
+cargo-tdd crate *args:
+  set -a; . tools/envs/{{crate}}.env; set +a; \
+  watchexec -r -w crates -e rs,toml,sql -- cargo test -p {{crate}} -- {{args}}
 
 cargo-test-all:
   set -a; . tools/envs/test.env; set +a; \
