@@ -52,6 +52,10 @@ impl TodosInteractor {
         Ok(self.repository.add(todo).await?)
     }
 
+    /// # Errors
+    ///
+    /// Returns [`TodoError::NotFound`] if the todo does not exist,
+    /// or [`TodoError::Storage`] if there is a persistence failure.
     #[instrument(skip_all)]
     pub async fn get_by_id(&self, todo_id: Uuid) -> Result<TodoModel, TodoError> {
         if todo_id.get_version_num() != 7 {
@@ -71,7 +75,7 @@ impl TodosInteractor {
     pub async fn list_by_filter(
         &self,
         filter: &TodoFilter,
-        sort: &Sort<TodoSortKey>,
+        sort: Sort<TodoSortKey>,
         cursor: &Cursor<TodoCursor>,
     ) -> Result<Page<TodoModel, TodoCursor>, TodoError> {
         let limit = cursor

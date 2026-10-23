@@ -165,7 +165,6 @@ impl TryFrom<ListTodosQuery> for ListParams {
             filter: TodoFilter {
                 todo_id: query.todo_id,
                 is_completed: query.is_completed,
-                ..TodoFilter::default()
             },
             sort: Sort {
                 key: key.into(),
@@ -216,7 +215,7 @@ pub async fn list_todos(
     let page = app_state
         .interactors
         .todos
-        .list_by_filter(&filter, &sort, &cursor)
+        .list_by_filter(&filter, sort, &cursor)
         .await?;
     Ok(Json(TodoPageHttp::new(page, sort)))
 }

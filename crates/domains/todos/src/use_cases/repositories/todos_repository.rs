@@ -18,7 +18,7 @@ pub trait TodosRepository: std::fmt::Debug + Send + Sync {
     fn stream_by_filter(
         &self,
         filter: &TodoFilter,
-        sort: &Sort<TodoSortKey>,
+        sort: Sort<TodoSortKey>,
         cursor: &Cursor<TodoCursor>,
     ) -> TodoStream<'_>;
 
@@ -33,7 +33,7 @@ pub trait TodosRepository: std::fmt::Debug + Send + Sync {
         };
         let cursor = Cursor::default();
 
-        self.stream_by_filter(&filter, &sort, &cursor)
+        self.stream_by_filter(&filter, sort, &cursor)
             .try_next()
             .await
     }
@@ -41,7 +41,7 @@ pub trait TodosRepository: std::fmt::Debug + Send + Sync {
     async fn list_by_filter(
         &self,
         filter: &TodoFilter,
-        sort: &Sort<TodoSortKey>,
+        sort: Sort<TodoSortKey>,
         cursor: &Cursor<TodoCursor>,
     ) -> Result<Vec<TodoModel>, StorageError> {
         self.stream_by_filter(filter, sort, cursor)

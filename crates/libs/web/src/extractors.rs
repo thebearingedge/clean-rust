@@ -1,3 +1,5 @@
+use std::fmt::Write;
+
 use aide::OperationInput;
 use axum::{
     Json,
@@ -78,7 +80,7 @@ fn parameter_error(path: String, message: String) -> ApiError {
 fn parse_query<T: DeserializeOwned>(raw: &str) -> Result<T, ApiError> {
     let deserializer = serde_html_form::Deserializer::new(form_urlencoded::parse(raw.as_bytes()));
     serde_path_to_error::deserialize(deserializer).map_err(|e| {
-        let pointer = pointer_from(&e.path());
+        let pointer = pointer_from(e.path());
         parameter_error(query_location(&pointer), e.inner().to_string())
     })
 }
@@ -88,7 +90,10 @@ fn query_location(pointer: &str) -> String {
     match segments.next() {
         None => "?".to_owned(),
         Some(name) => {
-            let indexes: String = segments.map(|i| format!("[{i}]")).collect();
+            let indexes = segments.fold(String::new(), |mut out, i| {
+                let _ = write!(out, "[{i}]");
+                out
+            });
             format!("?{name}{indexes}=")
         }
     }
@@ -103,6 +108,7 @@ where
 {
     type Rejection = ApiError;
 
+    #[allow(clippy::unused_async_trait_impl)]
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let value = parse_query::<T>(parts.uri.query().unwrap_or_default())?;
         validate_typed(state.validator_for(), &value, query_location)?;

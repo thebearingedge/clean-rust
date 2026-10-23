@@ -43,6 +43,7 @@ schemars = { version = "0.9", features = [
 ] }
 sea-query = { version = "1.0.2", features = [
   "backend-postgres",
+  "derive",
   "postgres-array",
   "with-chrono",
   "with-uuid",
