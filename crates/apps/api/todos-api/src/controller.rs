@@ -15,13 +15,13 @@ use crate::{app_error::AppError, app_state::AppState};
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct NewTodoBody {
+pub struct NewTodoHttp {
     #[validate(length(min = 1))]
     task: String,
 }
 
-impl From<NewTodoBody> for NewTodoModel {
-    fn from(new: NewTodoBody) -> Self {
+impl From<NewTodoHttp> for NewTodoModel {
+    fn from(new: NewTodoHttp) -> Self {
         NewTodoModel {
             task: new.task,
             completed_at: None,
@@ -51,7 +51,7 @@ impl From<TodoModel> for TodoHttp {
 
 pub async fn add_todo(
     State(app_state): State<AppState>,
-    ValidatedJson(new_todo): ValidatedJson<NewTodoBody>,
+    ValidatedJson(new_todo): ValidatedJson<NewTodoHttp>,
 ) -> Result<(StatusCode, Json<TodoHttp>), AppError> {
     let model = app_state.interactors.todos.add(&new_todo.into()).await?;
     Ok((StatusCode::CREATED, Json(model.into())))

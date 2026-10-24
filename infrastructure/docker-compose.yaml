@@ -8,8 +8,8 @@ services:
       POSTGRES_INITDB_ARGS: --nosync
     tmpfs: /var/lib/postgresql
     volumes:
-      - ./services/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
-      - ./services/postgres/01_create_databases.sql:/docker-entrypoint-initdb.d/01_create_databases.sql:ro
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./postgres/01_create_databases.sql:/docker-entrypoint-initdb.d/01_create_databases.sql:ro
     ports:
       - 127.0.0.1:5432:5432
     healthcheck:
@@ -31,7 +31,7 @@ services:
     image: docker.io/otel/opentelemetry-collector:0.162.0
     command: [--config=/etc/opentelemetry-collector/config.yaml]
     volumes:
-      - ./services/opentelemetry-collector/config.yaml:/etc/opentelemetry-collector/config.yaml:ro
+      - ./opentelemetry-collector/config.yaml:/etc/opentelemetry-collector/config.yaml:ro
     ports:
       - 4317:4317
       - 4318:4318
