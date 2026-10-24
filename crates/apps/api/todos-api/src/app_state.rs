@@ -7,7 +7,7 @@ use sqlx::PgPool;
 use todos::{TodosInteractor, repositories::postgres::TodosRepository};
 use web::extractors::HasSchema;
 
-use crate::controller::{ListTodosQuery, NewTodoBody, TodoPath};
+use crate::controller::{ListTodosQuery, NewTodoHttp, TodoPath};
 
 #[derive(Clone, Debug)]
 pub struct AppState {
@@ -23,7 +23,7 @@ impl AppState {
         };
 
         let schemas = Schemas {
-            add_todo: validator::<NewTodoBody>(),
+            add_todo: validator::<NewTodoHttp>(),
             get_todo: validator::<TodoPath>(),
             list_todos: validator::<ListTodosQuery>(),
         };
@@ -47,7 +47,7 @@ pub struct Schemas {
     list_todos: Validator,
 }
 
-impl HasSchema<NewTodoBody> for AppState {
+impl HasSchema<NewTodoHttp> for AppState {
     fn validator_for(&self) -> &Validator {
         &self.schemas.add_todo
     }

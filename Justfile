@@ -9,12 +9,15 @@ init:
   cargo install --locked watchexec-cli@2.8.0
   cargo install --locked cargo-llvm-cov@0.9.1
 
+infrastructure *args:
+  docker compose -f infrastructure/docker-compose.yaml {{args}}
+
 migrate domain action='run' *args:
   set -a; . tools/envs/{{domain}}.env; set +a; \
   sqlx migrate {{action}} --source crates/domains/{{domain}}/migrations {{args}}
 
 psql database:
-  docker compose exec -it postgres psql -U postgres -d {{database}}
+  docker compose -f infrastructure/docker-compose.yaml exec -it postgres psql -U postgres -d {{database}}
 
 cargo-lint:
   cargo clippy --workspace --all-targets -- -D warnings

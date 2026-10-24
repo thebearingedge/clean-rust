@@ -37,7 +37,10 @@ mod tests {
             "openapi": "3.1.0",
             "info": { "title": "Todos API" },
             "paths": {
-                "/v1/todos": { "post": { "operationId": "addTodo" } },
+                "/v1/todos": {
+                    "get": { "operationId": "listTodos" },
+                    "post": { "operationId": "addTodo" }
+                },
                 "/v1/todos/{todo_id}": { "get": { "operationId": "getTodo" } }
             }
         }));
@@ -46,9 +49,9 @@ mod tests {
     #[sqlx::test(migrator = "todos::MIGRATOR")]
     async fn responds_503_when_the_database_is_unavailable(postgres: PgPool) {
         let router = create_todos_api(AppState::new(postgres.clone()));
+
         postgres.close().await;
-        // POST a valid todo as in your other tests, then expect:
-        // status 503, body { "error": "service unavailable" }
+
         let res = router
             .oneshot(
                 Request::builder()
@@ -367,7 +370,7 @@ mod tests {
         assert_eq!(cursor, "null");
     }
 
-    #[sqlx::test(migrator = "todos::MIGRATOR", fixtures("list_todos.sql"))]
+    #[sqlx::test(migrator = "todos::MIGRATOR", fixtures("list_todos"))]
     async fn returns_completed_todos(postgres: PgPool) {
         let res = create_todos_api(AppState::new(postgres))
             .oneshot(
@@ -395,7 +398,7 @@ mod tests {
             .for_each(|todo| assert_ne!(todo.completed_at, None));
     }
 
-    #[sqlx::test(migrator = "todos::MIGRATOR", fixtures("list_todos.sql"))]
+    #[sqlx::test(migrator = "todos::MIGRATOR", fixtures("list_todos"))]
     async fn returns_incomplete_todos(postgres: PgPool) {
         let res = create_todos_api(AppState::new(postgres))
             .oneshot(
@@ -423,7 +426,7 @@ mod tests {
             .for_each(|todo| assert_eq!(todo.completed_at, None));
     }
 
-    #[sqlx::test(migrator = "todos::MIGRATOR", fixtures("list_todos.sql"))]
+    #[sqlx::test(migrator = "todos::MIGRATOR", fixtures("list_todos"))]
     async fn sorts_todos_by_updated_at(postgres: PgPool) {
         let res = create_todos_api(AppState::new(postgres))
             .oneshot(
@@ -454,7 +457,7 @@ mod tests {
         assert!(updated_dates.is_sorted());
     }
 
-    #[sqlx::test(migrator = "todos::MIGRATOR", fixtures("list_todos.sql"))]
+    #[sqlx::test(migrator = "todos::MIGRATOR", fixtures("list_todos"))]
     async fn sorts_todos_by_todo_id(postgres: PgPool) {
         let res = create_todos_api(AppState::new(postgres))
             .oneshot(
