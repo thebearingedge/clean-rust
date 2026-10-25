@@ -19,8 +19,17 @@ migrate domain action='run' *args:
 psql database:
   docker compose -f infrastructure/docker-compose.yaml exec -it postgres psql -U postgres -d {{database}}
 
-cargo-lint:
-  cargo clippy --workspace --all-targets -- -D warnings
+cargo-lint crate='':
+  cargo clippy {{ if crate == '' { '--workspace' } else { '-p ' + crate } }} --all-targets -- -D warnings
+
+cargo-check crate *args:
+  cargo check -p {{crate}} {{args}}
+
+cargo-fmt:
+  cargo fmt --all --check
+
+cargo-fmt-fix:
+  cargo fmt --all
 
 cargo-run app *args:
   set -a; [ -f tools/envs/{{app}}.env ] && . tools/envs/{{app}}.env; set +a; \

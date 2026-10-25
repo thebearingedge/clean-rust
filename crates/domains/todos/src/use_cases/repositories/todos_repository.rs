@@ -7,7 +7,9 @@ use uuid::Uuid;
 use storage::StorageError;
 use utils::pagination::{Cursor, Sort, SortOrder};
 
-use crate::models::todo::{NewTodoModel, TodoCursor, TodoFilter, TodoModel, TodoSortKey};
+use crate::models::todo::{
+    NewTodoModel, TodoCursor, TodoFilter, TodoModel, TodoSortKey, TodoUpdateModel,
+};
 
 pub type TodoStream<'a> = Pin<Box<dyn Stream<Item = Result<TodoModel, StorageError>> + Send + 'a>>;
 
@@ -37,6 +39,14 @@ pub trait TodosRepository: std::fmt::Debug + Send + Sync {
             .try_next()
             .await
     }
+
+    /// Replaces the mutable fields of the todo with `todo_id`. Returns the
+    /// updated todo, or `None` when no todo has that id.
+    async fn update(
+        &self,
+        todo_id: Uuid,
+        todo: &TodoUpdateModel,
+    ) -> Result<Option<TodoModel>, StorageError>;
 
     async fn list_by_filter(
         &self,

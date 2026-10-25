@@ -7,7 +7,7 @@ use uuid::Uuid;
 use utils::pagination::{Cursor, Page, Sort};
 
 use crate::{
-    models::todo::{NewTodoModel, TodoCursor, TodoFilter, TodoModel, TodoSortKey},
+    models::todo::{NewTodoModel, TodoCursor, TodoFilter, TodoModel, TodoSortKey, TodoUpdateModel},
     use_cases::repositories::TodosRepository,
     use_cases::todo_error::TodoError,
 };
@@ -38,6 +38,28 @@ impl TodosInteractor {
         }
 
         Ok(self.repository.add(todo).await?)
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`TodoError::EmptyTask`] if the task fails validation (see
+    /// [`TodoUpdateModel::has_valid_task`]), [`TodoError::NotFound`] if the
+    /// todo does not exist, and [`TodoError::Storage`] if the repository
+    /// cannot persist the update.
+    #[instrument(skip_all)]
+    pub async fn update(
+        &self,
+        todo_id: Uuid,
+        todo: &TodoUpdateModel,
+    ) -> Result<TodoModel, TodoError> {
+        if !todo.has_valid_task() {
+            return Err(TodoError::EmptyTask);
+        }
+
+        self.repository
+            .update(todo_id, todo)
+            .await?
+            .ok_or(TodoError::NotFound)
     }
 
     /// # Errors

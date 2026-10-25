@@ -24,6 +24,24 @@ Leaks to avoid (found in past reviews):
 - Domain → HTTP status mapping belongs in the app's `app_error.rs`, never in `libs/web` (`From<StorageError>` impls hard-coding 503/409/500 there were flagged).
 - No UUID-version or ID-scheme checks in use cases (`get_version_num() != 7` conflated "bad ID" with "not found" — don't repeat it).
 
+## Naming and structure — suffixes carry the layer
+
+- **Domain models** (in `crates/domains/<domain>/src/models`) end in `Model`: `TodoModel`, `NewTodoModel`, `TodoUpdateModel`.
+- **HTTP bodies** (request and response structs in app controllers) mirror the domain model's name exactly, with `Model` replaced by `Http`: `NewTodoModel` → `NewTodoHttp`, `TodoModel` → `TodoHttp`, `TodoUpdateModel` → `TodoUpdateHttp`. Do not introduce other morphemes (`TodoPutHttp` would be a violation — the verb lives in the route, not the struct).
+- **HTTP query structs** end in `Query`: `ListTodosQuery`.
+- **HTTP structs are colocated**: each HTTP struct sits immediately above the handler that uses it in the controller file, not grouped at the top of the file.
+
+## API integration tests — fixtures, not chained endpoints
+
+- Seed state through a `fixtures/` file named after the OpenAPI `operationId` in snake_case (`updateTodo` → `update_todo.sql`), loaded via `#[sqlx::test(migrator = "...", fixtures("update_todo"))]`. Do not create preconditions by calling other endpoints first; assert deltas against the fixture's known values.
+
+## Comments — what belongs in code
+
+- **Rustdoc is expected**: `///` on public items, including `# Errors` sections on fallible functions. Document contracts and invariants.
+- **No "decision" comments**: never narrate choices, history, or rationale in code ("agreed rule:", "deliberately untouched", "mirrors the existing pattern", "we chose X because Y"). If a decision needs recording, it goes in the plan/notes, not the source.
+- **No third-party API documentation comments**: never paraphrase what a framework, crate, or database feature does (e.g. what `AssertSqlSafe` means, what a Postgres function returns, how sea-query renders an expression). The code and upstream docs cover it.
+- **Explanatory comments are opt-in**: anything beyond rustdoc must be explicitly planned and approved ahead of time (list the comment in the plan task's `Work:` section). Treat any unplanned explanatory comment as a review finding.
+
 ## Patterns
 
 - **Imports**: four groups separated by blank lines, in this order — std library, third-party crates, internal workspace crates (`todos`, `database`, `telemetry`, `storage`, `utils`, `web`), then the current crate (`crate::` / `super::`).
@@ -38,8 +56,12 @@ Leaks to avoid (found in past reviews):
 
 Run from the repo root (tooling needs direnv active — see `AGENTS.md`):
 
-1. `just cargo-lint` — clippy pedantic with `-D warnings`; zero warnings, zero fmt drift (`cargo fmt --all --check` is CI-enforced).
-2. `just cargo-test <crate>` for every crate you touched. Integration tests need Postgres up: `just infrastructure up -d --wait`.
-3. If you added/changed migrations: `just migrate <domain> run` (revert with `just migrate <domain> revert [-- --target-version <n>]`).
+1. `just cargo-fmt` — zero fmt drift (CI enforces `cargo fmt --all --check`; fix drift with `just cargo-fmt-fix`).
+2. `just cargo-lint` — clippy pedantic with `-D warnings`, zero warnings. Mid-task, when the workspace is intentionally red (e.g. a trait method awaiting its impl), scope it: `just cargo-lint <crate>`.
+3. `just cargo-check <crate> *args` — plain type-check of one crate for the fast loop (e.g. the designed intermediate states between port and impl tasks).
+4. `just cargo-test <crate>` for every crate you touched. Integration tests need Postgres up: `just infrastructure up -d --wait`.
+5. If you added/changed migrations: `just migrate <domain> run` (revert with `just migrate <domain> revert [-- --target-version <n>]`).
+
+Use the `just` recipes above instead of bare `cargo` commands — they wire in env files and keep one place for flags.
 
 Never commit anything. `.agents/temp/` is your scratch/output area — put notes, plans, and generated artifacts there, never in `coverage/`, `target/`, or the repo root.

@@ -13,7 +13,9 @@ use database::DbContext;
 use storage::StorageError;
 use utils::pagination::{Cursor, Sort, SortOrder};
 
-use crate::models::todo::{NewTodoModel, TodoCursor, TodoFilter, TodoModel, TodoSortKey};
+use crate::models::todo::{
+    NewTodoModel, TodoCursor, TodoFilter, TodoModel, TodoSortKey, TodoUpdateModel,
+};
 use crate::use_cases::repositories::{TodoStream, TodosRepository as Interface};
 
 #[derive(Clone, Copy, Iden)]
@@ -72,15 +74,45 @@ impl Interface for TodosRepository {
             ]))
             .build_sqlx(PostgresQueryBuilder);
 
-        // `AssertSqlSafe` marks the sea-query-generated SQL (numbered bind
-        // placeholders produced via `SqlxBinder`) as trusted so sqlx prepares
-        // and caches it like any static query instead of treating it as
-        // unchecked dynamic SQL.
         sqlx::query_as_with::<_, TodoRow, _>(AssertSqlSafe(text), values)
             .fetch_one(&self.service)
             .await
             .map(TodoModel::from)
             .db_context("inserting todo")
+            .map_err(StorageError::from)
+    }
+
+    #[instrument(skip_all)]
+    async fn update(
+        &self,
+        todo_id: Uuid,
+        todo: &TodoUpdateModel,
+    ) -> Result<Option<TodoModel>, StorageError> {
+        let (text, values) = Query::update()
+            .table(Todos::Table)
+            .value(Todos::Task, Expr::val(&todo.task))
+            .value(
+                Todos::CompletedAt,
+                Expr::case(
+                    Expr::value(todo.is_completed),
+                    Expr::cust("clock_timestamp()"),
+                )
+                .finally(Expr::null()),
+            )
+            .and_where(Expr::col(Todos::TodoId).eq(todo_id))
+            .returning(Query::returning().columns([
+                Todos::TodoId,
+                Todos::Task,
+                Todos::CompletedAt,
+                Todos::UpdatedAt,
+            ]))
+            .build_sqlx(PostgresQueryBuilder);
+
+        sqlx::query_as_with::<_, TodoRow, _>(AssertSqlSafe(text), values)
+            .fetch_optional(&self.service)
+            .await
+            .map(|row| row.map(TodoModel::from))
+            .db_context("updating todo")
             .map_err(StorageError::from)
     }
 
@@ -95,9 +127,6 @@ impl Interface for TodosRepository {
             SortOrder::Desc => Order::Desc,
         };
         let sort_columns: &[Todos] = match sort.key {
-            // The cursor tuple must correspond to this sort key: `UpdatedAt`
-            // sorts carry the `todo_id` tiebreaker so `(updated_at, todo_id)`
-            // is a total order (see `cursor_predicate`).
             TodoSortKey::TodoId => &[Todos::TodoId],
             TodoSortKey::UpdatedAt => &[Todos::UpdatedAt, Todos::TodoId],
         };
@@ -128,7 +157,6 @@ impl Interface for TodosRepository {
             })
             .build_sqlx(PostgresQueryBuilder);
 
-        // Same `AssertSqlSafe` invariant as in `add` above.
         sqlx::query_as_with::<_, TodoRow, _>(AssertSqlSafe(text), values)
             .fetch(&self.service)
             .map(|row| {
