@@ -26,3 +26,25 @@ jobs:
           save-cache: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: ./.github/actions/setup-rust
+
+      - name: Start services
+        run: docker compose -f infrastructure/docker-compose.yaml up -d --wait --wait-timeout 120
+
+      - name: Run tests
+        env:
+          DATABASE_URL: postgres://postgres:password@localhost:5432/postgres
+        run: cargo test --workspace --locked
+
+      - name: Show service logs
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Stop services
+        if: always()
+        run: docker compose -f infrastructure/docker-compose.yaml down -v
