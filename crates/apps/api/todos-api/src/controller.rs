@@ -341,3 +341,18 @@ pub async fn update_todo(
         .await?;
     Ok(Json(todo.into()))
 }
+
+/// Deletes a todo by its ID.
+///
+/// # Errors
+///
+/// Returns [`AppError`] as a `404 Not Found` if the todo doesn't exist, or
+/// a `500 Internal Server Error` / `503 Service Unavailable` on storage
+/// failure.
+pub async fn delete_todo(
+    State(app_state): State<AppState>,
+    ValidatedPath(path): ValidatedPath<TodoPath>,
+) -> Result<StatusCode, AppError> {
+    app_state.interactors.todos.remove(path.todo_id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}

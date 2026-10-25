@@ -119,6 +119,22 @@ impl Interface for TodosRepository {
             .map_err(StorageError::from)
     }
 
+    #[instrument(skip_all)]
+    async fn delete(&self, todo_id: Uuid) -> Result<bool, StorageError> {
+        let (text, values) = Query::delete()
+            .from_table(Todos::Table)
+            .and_where(Expr::col(Todos::TodoId).eq(todo_id))
+            .returning(Query::returning().columns([Todos::TodoId]))
+            .build_sqlx(PostgresQueryBuilder);
+
+        sqlx::query_scalar_with::<_, Uuid, _>(AssertSqlSafe(text), values)
+            .fetch_optional(&self.service)
+            .await
+            .map(|deleted| deleted.is_some())
+            .db_context("deleting todo")
+            .map_err(StorageError::from)
+    }
+
     fn stream_by_filter(
         &self,
         filter: &TodoFilter,

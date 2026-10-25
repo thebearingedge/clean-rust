@@ -53,6 +53,15 @@ pub fn create_todos_api(app_state: AppState) -> Router {
                         .response::<200, Json<TodoHttp>>()
                         .response::<404, Json<ErrorBody>>(),
                 )
+            })
+            .delete_with(controller::delete_todo, |op| {
+                web::openapi::standard_delete_errors(
+                    op.id("deleteTodo")
+                        .summary("Delete a todo")
+                        .description("Deletes a todo by its ID.")
+                        .response::<204, ()>()
+                        .response::<404, Json<ErrorBody>>(),
+                )
             }),
         )
         .api_route(

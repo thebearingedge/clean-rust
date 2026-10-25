@@ -1,6 +1,7 @@
 //! `OpenAPI` helpers: the `/openapi.json` handler and the standard
 //! error-response transforms that every operation should apply
-//! (`standard_get_errors`/`standard_post_errors`/`standard_put_errors`).
+//! (`standard_get_errors`/`standard_post_errors`/`standard_put_errors`/
+//! `standard_delete_errors`).
 
 use std::{future::Ready, sync::Arc};
 
@@ -42,4 +43,11 @@ pub fn standard_post_errors(op: TransformOperation<'_>) -> TransformOperation<'_
 /// set plus 415 (unsupported media type).
 pub fn standard_put_errors(op: TransformOperation<'_>) -> TransformOperation<'_> {
     standard_errors(op).response::<415, Json<ErrorBody>>()
+}
+
+/// Documents the standard error responses of a DELETE operation
+/// (400/422/500/503). DELETE carries no request body, so unlike post/put
+/// there is no 415 response.
+pub fn standard_delete_errors(op: TransformOperation<'_>) -> TransformOperation<'_> {
+    standard_errors(op)
 }

@@ -84,6 +84,14 @@ pub trait TodosRepository: std::fmt::Debug + Send + Sync {
         todo: &TodoUpdateModel,
     ) -> Result<Option<TodoModel>, StorageError>;
 
+    /// Deletes the todo with `todo_id`, returning `true` when a row was
+    /// deleted and `false` when no todo has that id.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`StorageError`] if the delete cannot be persisted.
+    async fn delete(&self, todo_id: Uuid) -> Result<bool, StorageError>;
+
     /// Collects the result of [`stream_by_filter`](Self::stream_by_filter)
     /// into todos matching `filter` in `sort` order.
     ///

@@ -84,6 +84,19 @@ impl TodosInteractor {
 
     /// # Errors
     ///
+    /// Returns [`TodoError::NotFound`] if the todo does not exist, or
+    /// [`TodoError::Storage`] if the repository cannot persist the delete.
+    #[instrument(skip_all)]
+    pub async fn remove(&self, todo_id: Uuid) -> Result<(), TodoError> {
+        if self.repository.delete(todo_id).await? {
+            Ok(())
+        } else {
+            Err(TodoError::NotFound)
+        }
+    }
+
+    /// # Errors
+    ///
     /// Returns [`TodoError::Storage`] if the repository cannot be read.
     #[instrument(skip_all)]
     pub async fn list_by_filter(
