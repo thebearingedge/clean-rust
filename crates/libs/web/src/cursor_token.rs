@@ -17,8 +17,12 @@ pub fn encode<T: Serialize>(payload: &T) -> String {
 ///   `422 Unprocessable Entity`.
 #[derive(Debug, Error)]
 pub enum CursorError {
+    /// The token could not be decoded as base64 or as JSON.
     #[error("cursor is malformed")]
     Malformed,
+
+    /// The token decoded but does not match the sort requested by the
+    /// current query.
     #[error("cursor does not match the requested sort")]
     SortMismatch,
 }

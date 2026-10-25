@@ -22,6 +22,7 @@ use crate::api_error::{ApiError, ValidationDetail, ValidationErrorBody};
 /// Implemented by the app state; the validators typically come from
 /// `schemars::schema_for!` of the request types.
 pub trait HasSchema<T> {
+    /// The JSON-Schema validator to enforce for `T`.
     fn validator_for(&self) -> &Validator;
 }
 

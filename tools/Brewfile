@@ -1,0 +1,10 @@
+# Load/unload environment variables based on $PWD
+brew "direnv"
+# GitHub command-line tool
+brew "gh"
+# Handy way to save and run project-specific commands
+brew "just"
+# Static analysis and lint tool, for (ba)sh scripts
+brew "shellcheck"
+# Friendly and fast tool for sending HTTP requests
+brew "xh"

@@ -21,7 +21,7 @@ Stack: axum, sqlx (Postgres), sea-query, opentelemetry, tracing, thiserror. Clip
 
 ## Commands
 
-Tooling is managed via `direnv` (`.envrc` sets `CARGO_INSTALL_ROOT=tools/cargo` and adds `tools/cargo/bin` to `PATH`); run `just init` to install sqlx-cli, watchexec, and cargo-llvm-cov there.
+Tooling is managed via `direnv` (`.envrc` sets `CARGO_INSTALL_ROOT=tools/cargo` and adds `tools/cargo/bin` to `PATH`); run `just init` to install sqlx-cli, watchexec, and cargo-llvm-cov there. Additional CLIs are declared in `tools/Brewfile` and installed by a human via Homebrew — assume the tools listed there are available; never install or change tooling yourself.
 
 | Task | Command |
 |---|---|
@@ -51,6 +51,7 @@ Tests require the compose services running: `just infrastructure up -d --wait`.
 
 ## Conventions
 
+- Agent skills live in `.agents/skills/<name>/SKILL.md`. When a session establishes new durable rules (lints, patterns, conventions), update the relevant skill so they carry forward.
 - Error types live in dedicated files named `<thing>_error.rs` (e.g. `db_error.rs`, `storage_error.rs`, `api_error.rs`).
 - Multi-file modules use the file-and-folder pattern (`use_cases/repositories.rs` + `use_cases/repositories/todos_repository.rs`).
 - Domain → HTTP error mapping belongs in the app layer (`app_error.rs`), not in shared libs.

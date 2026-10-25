@@ -1,6 +1,5 @@
-//! The todos domain: business logic ([`use_cases`]) behind repository ports
-//! ([`use_cases::repositories::TodosRepository`]), with sqlx/sea-query
-//! adapters in [`infrastructure`].
+//! The todos domain: business logic driven by [`TodosInteractor`] behind the
+//! [`TodosRepository`] port, with sqlx/sea-query adapters in `infrastructure`.
 
 mod infrastructure;
 pub mod models;

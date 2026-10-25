@@ -16,10 +16,15 @@ use crate::{
 /// All business routes are mounted via [`ApiRouter::api_route`] so handlers and
 /// error responses are documented; the router carries the extension layer with
 /// the generated [`OpenApi`] document served at `/openapi.json`.
+///
+/// Aide cannot read doc comments, so the operation descriptions set in the
+/// route-mount closures below are duplicated from the handler doc comments in
+/// `controller.rs` and must be kept in sync with them.
 pub fn create_todos_api(app_state: AppState) -> Router {
     let mut api = OpenApi {
         info: Info {
             title: "Todos API".into(),
+            description: Some("CRUD API for managing todos, with cursor-based pagination.".into()),
             version: env!("CARGO_PKG_VERSION").into(),
             ..Info::default()
         },
@@ -33,6 +38,7 @@ pub fn create_todos_api(app_state: AppState) -> Router {
                 web::openapi::standard_get_errors(
                     op.id("getTodo")
                         .summary("Get a todo")
+                        .description("Gets a single todo by its ID.")
                         .response::<200, Json<TodoHttp>>()
                         .response::<404, Json<ErrorBody>>(),
                 )
@@ -41,6 +47,9 @@ pub fn create_todos_api(app_state: AppState) -> Router {
                 web::openapi::standard_put_errors(
                     op.id("updateTodo")
                         .summary("Update a todo")
+                        .description(
+                            "Fully replaces a todo's mutable fields and returns the updated todo.",
+                        )
                         .response::<200, Json<TodoHttp>>()
                         .response::<404, Json<ErrorBody>>(),
                 )
@@ -52,6 +61,7 @@ pub fn create_todos_api(app_state: AppState) -> Router {
                 web::openapi::standard_post_errors(
                     op.id("addTodo")
                         .summary("Create a todo")
+                        .description("Adds a new todo and returns it with a `201 Created` status.")
                         .response::<201, Json<TodoHttp>>(),
                 )
             })
@@ -59,6 +69,7 @@ pub fn create_todos_api(app_state: AppState) -> Router {
                 web::openapi::standard_get_errors(
                     op.id("listTodos")
                         .summary("List todos")
+                        .description("Lists todos by filter with cursor-based pagination.")
                         .response::<200, Json<TodoPageHttp>>(),
                 )
             }),

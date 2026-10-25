@@ -10,7 +10,7 @@ const DEFAULT_FILTER_LEVEL: &str = "info";
 /// Initializes the global telemetry stack and returns the tracer provider.
 ///
 /// Installs the global tracing subscriber (JSON formatting, OTLP span export,
-/// [`EnvFilter`] driven by `RUST_LOG` with a [`DEFAULT_FILTER_LEVEL`] fallback)
+/// [`EnvFilter`] driven by `RUST_LOG` with a `DEFAULT_FILTER_LEVEL` fallback)
 /// and the global W3C `TraceContext` propagator, then returns the
 /// [`SdkTracerProvider`] for the caller to shut down.
 ///

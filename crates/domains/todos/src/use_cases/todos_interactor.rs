@@ -1,3 +1,7 @@
+//! Primary entry point for the todos domain, driving a
+//! [`TodosRepository`](crate::use_cases::repositories::TodosRepository)
+//! implementation behind the [`TodosInteractor`].
+
 use std::sync::Arc;
 
 use futures::TryStreamExt;
@@ -16,11 +20,13 @@ const DEFAULT_PAGE_SIZE: u64 = 50;
 const MAX_PAGE_SIZE: u64 = 200;
 
 #[derive(Clone, Debug)]
+/// Coordinates the todos use cases over the injected repository port.
 pub struct TodosInteractor {
     repository: Arc<dyn TodosRepository>,
 }
 
 impl TodosInteractor {
+    /// Creates an interactor backed by the given repository.
     #[must_use]
     pub fn new(repository: Arc<dyn TodosRepository>) -> Self {
         Self { repository }

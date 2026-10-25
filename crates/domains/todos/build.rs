@@ -1,3 +1,5 @@
+//! Build script for the `todos` domain crate.
+
 fn main() {
     // Path is relative to the package root: rebuild when the migrations
     // directory changes so `sqlx::migrate!()` in
