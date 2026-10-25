@@ -1,0 +1,31 @@
+name: Setup Rust
+description: Install the root toolchain, restore the cargo/target cache, and fetch dependencies
+
+inputs:
+  shared-key:
+    description: Cache key suffix. Use the same value in jobs that can share build artifacts.
+    required: false
+    default: ""
+  save-cache:
+    description: Whether this job may write the cache ("true"/"false")
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    - name: Install toolchain
+      shell: bash
+      run: |
+        rustup toolchain install
+        rustc --version --verbose
+
+    - name: Restore cargo and target cache
+      uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
+      with:
+        shared-key: ${{ inputs.shared-key }}
+        save-if: ${{ inputs.save-cache == 'true' }}
+
+    - name: Fetch dependencies
+      shell: bash
+      run: cargo fetch --locked
