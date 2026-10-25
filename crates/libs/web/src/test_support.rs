@@ -145,6 +145,53 @@ pub async fn post_body(
     .await
 }
 
+/// Sends a `DELETE` request and collects the interesting parts of the
+/// response.
+///
+/// Unlike [`get_response_parts`], this tolerates a missing `Content-Type`
+/// header: a `204 No Content` response carries none. A missing header maps
+/// to `content_type: ""` and `body: None`.
+///
+/// # Panics
+///
+/// Panics when the request cannot be built or the router fails to handle
+/// it, or when a `Content-Type` header is present but not UTF-8.
+pub async fn delete(router: Router, uri: &str) -> ResponseParts {
+    let request = Request::builder()
+        .method(Method::DELETE)
+        .uri(uri)
+        .body(Body::empty())
+        .expect("DELETE request should be buildable");
+    let response = router
+        .oneshot(request)
+        .await
+        .expect("DELETE request should be handled");
+
+    let status = response.status();
+    let content_type = response
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .map(|value| {
+            value
+                .to_str()
+                .expect("content-type header should be UTF-8")
+                .to_owned()
+        })
+        .unwrap_or_default();
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("response body should be collectable")
+        .to_bytes();
+    let body = serde_json::from_slice(&bytes).ok();
+    ResponseParts {
+        status,
+        content_type,
+        body,
+    }
+}
+
 /// Extracts the `next`-page cursor from a list response, if it has one.
 #[must_use]
 pub fn next_cursor(parts: &ResponseParts) -> Option<String> {
@@ -158,13 +205,13 @@ pub fn next_cursor(parts: &ResponseParts) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ResponseParts, get, get_response_parts, next_cursor, post_body, post_json, put_json,
+        ResponseParts, delete, get, get_response_parts, next_cursor, post_body, post_json, put_json,
     };
     use axum::{
         Json, Router,
         body::{Body, Bytes},
         http::{HeaderMap, StatusCode, header},
-        routing::{get as get_route, post as post_route},
+        routing::{delete as delete_route, get as get_route, post as post_route},
     };
     use serde_json::{Value, json};
     use serde_json_assert::assert_json_include;
@@ -189,6 +236,7 @@ mod tests {
             )
             .route("/text", get_route(|| async { "ok" }))
             .route("/echo", post_route(echo).put(echo))
+            .route("/gone", delete_route(|| async { StatusCode::NO_CONTENT }))
     }
 
     #[tokio::test]
@@ -231,6 +279,27 @@ mod tests {
             "content_type": "application/json",
             "body": { "hello": "world" },
         }));
+    }
+
+    #[tokio::test]
+    async fn delete_collects_a_204_with_no_content_type_or_body() {
+        let parts = delete(router(), "/gone").await;
+        assert_eq!(parts.status, StatusCode::NO_CONTENT);
+        assert_eq!(parts.content_type, "");
+        assert_eq!(parts.body, None);
+    }
+
+    #[tokio::test]
+    async fn delete_parses_a_json_error_body() {
+        let router: Router = Router::new().route(
+            "/gone",
+            delete_route(|| async { (StatusCode::NOT_FOUND, Json(json!({ "error": "gone" }))) }),
+        );
+        let parts = delete(router, "/gone").await;
+        assert_eq!(parts.status, StatusCode::NOT_FOUND);
+        assert_eq!(parts.content_type, "application/json");
+        let body = parts.body.expect("response should be json");
+        assert_json_include!(actual: body, expected: json!({ "error": "gone" }));
     }
 
     #[tokio::test]

@@ -2,6 +2,8 @@
 brew "direnv"
 # GitHub command-line tool
 brew "gh"
+# Lightweight and flexible command-line JSON processor
+brew "jq"
 # Handy way to save and run project-specific commands
 brew "just"
 # Static analysis and lint tool, for (ba)sh scripts
