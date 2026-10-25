@@ -1,3 +1,13 @@
+//! Trace-context propagation between HTTP headers and [`tracing`] spans.
+//!
+//! [`inject_current`](crate::propagation::inject_current) writes the current
+//! span's context into a [`HeaderMap`](http::HeaderMap);
+//! [`link_parent`](crate::propagation::link_parent) does the reverse,
+//! extracting a parent context from request headers and attaching it to a
+//! new span. Both go through the globally installed text-map propagator (W3C
+//! `TraceContext`, installed by
+//! [`crate::provider::init_tracer_provider`]).
+
 use http::{HeaderMap, HeaderName, HeaderValue};
 use opentelemetry::{
     Context, global,
@@ -7,6 +17,8 @@ use opentelemetry::{
 use tracing::Span;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
+/// [`Extractor`] adapter that reads a parent context out of a
+/// [`HeaderMap`].
 struct HeaderExtractor<'a>(&'a HeaderMap);
 
 impl Extractor for HeaderExtractor<'_> {

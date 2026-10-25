@@ -4,22 +4,30 @@
 //! driver error together with caller-supplied context, plus the
 //! [`DbError::is_unavailable`]/[`DbError::is_conflict`] predicates used to
 //! reason about the failure. Classification into the transport-agnostic
-//! [`StorageError`] taxonomy happens separately, via
+//! [`storage::StorageError`] taxonomy happens separately, via
 //! `From<DbError> for StorageError` at the bottom of this file — this module
 //! never constructs `StorageError` variants itself.
 
 use storage::StorageError;
 use thiserror::Error;
 
+/// A database operation failure: the underlying [`sqlx::Error`] paired with
+/// caller-supplied `context` describing the operation that failed.
+///
+/// Classify with [`DbError::is_unavailable`] and [`DbError::is_conflict`];
+/// conversion into the transport-agnostic [`storage::StorageError`] taxonomy
+/// happens via the `From` impl at the bottom of this file.
 #[derive(Debug, Error)]
 #[error("{context}: {source}")]
 pub struct DbError {
+    /// Description of the operation that failed; forms the `Display` prefix.
     pub context: String,
     #[source]
     source: sqlx::Error,
 }
 
 impl DbError {
+    /// Wraps `source` with `context` describing the operation that failed.
     pub fn new(context: impl Into<String>, source: sqlx::Error) -> Self {
         Self {
             context: context.into(),
@@ -27,6 +35,8 @@ impl DbError {
         }
     }
 
+    /// True when the failure means the database is unreachable or degraded
+    /// (pool timed out or closed, IO failure).
     #[must_use]
     pub fn is_unavailable(&self) -> bool {
         // Deliberate over-classification: any `sqlx::Error::Io(_)` is treated
@@ -40,6 +50,7 @@ impl DbError {
         )
     }
 
+    /// True when the failure is a unique-constraint violation.
     #[must_use]
     pub fn is_conflict(&self) -> bool {
         self.source
@@ -48,7 +59,11 @@ impl DbError {
     }
 }
 
+/// Extension trait for `Result<T, sqlx::Error>` that attaches caller
+/// context to failures, producing [`DbError`].
 pub trait DbContext<T> {
+    /// Attaches `context` to a failed result; passes success through.
+    ///
     /// # Errors
     ///
     /// Wraps a [`sqlx::Error`] with additional context.

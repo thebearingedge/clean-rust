@@ -9,13 +9,29 @@ use web::extractors::HasSchema;
 
 use crate::controller::{ListTodosQuery, NewTodoHttp, TodoPath, TodoUpdateHttp};
 
+/// The axum app state shared by every handler: domain interactors and the
+/// per-request-DTO schema validators, both constructed from a Postgres pool
+/// by [`AppState::new`].
 #[derive(Clone, Debug)]
 pub struct AppState {
+    /// The use-case interactors the handlers call into.
     pub interactors: Interactors,
+    /// The JSON-schema validators the validated extractors look up through
+    /// the [`HasSchema`] impls on this type.
     pub schemas: Schemas,
 }
 
 impl AppState {
+    /// Creates the state from the Postgres pool: the todos repository
+    /// adapter is built on the pool and wrapped in a
+    /// [`TodosInteractor`], and one schema validator is derived per
+    /// request DTO ([`NewTodoHttp`], [`TodoUpdateHttp`], [`TodoPath`],
+    /// [`ListTodosQuery`]).
+    ///
+    /// # Panics
+    ///
+    /// Panics if a derived schema fails to serialize or compile as a
+    /// validator, which cannot happen for schemars-derived schemas.
     #[must_use]
     pub fn new(postgres: PgPool) -> Self {
         let interactors = Interactors {
@@ -41,6 +57,7 @@ impl AppState {
 /// [`AppState::new`].
 #[derive(Clone, Debug)]
 pub struct Interactors {
+    /// The todos domain interactor all handlers call into.
     pub todos: TodosInteractor,
 }
 

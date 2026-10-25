@@ -47,11 +47,14 @@ impl From<TodoRow> for TodoModel {
 }
 
 #[derive(Clone, Debug)]
+/// Postgres implementation of the
+/// [`TodosRepository`](crate::use_cases::repositories::TodosRepository) port.
 pub struct TodosRepository {
     service: PgPool,
 }
 
 impl TodosRepository {
+    /// Creates a repository backed by the given connection pool.
     #[must_use]
     pub fn new(service: PgPool) -> Self {
         Self { service }

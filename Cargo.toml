@@ -79,5 +79,8 @@ tracing-opentelemetry = "0.34.0"
 tracing-subscriber = { version = "0.3.23", features = ["json", "env-filter"] }
 uuid = { version = "1.28.0", features = ["serde", "v7"] }
 
+[workspace.lints.rust]
+missing_docs = "warn"
+
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }

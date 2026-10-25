@@ -10,7 +10,7 @@ storage.workspace = true
 telemetry.workspace = true
 todos.workspace = true
 utils.workspace = true
-web.workspace = true
+web = { workspace = true, features = ["test-support"] }
 
 aide.workspace = true
 anyhow.workspace = true
@@ -29,9 +29,7 @@ uuid.workspace = true
 
 [dev-dependencies]
 claims.workspace = true
-http-body-util.workspace = true
 serde-json-assert.workspace = true
-tower.workspace = true
 
 [lints]
 workspace = true

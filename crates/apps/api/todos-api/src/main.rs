@@ -1,3 +1,5 @@
+//! todos-api application binary.
+
 use std::net::SocketAddr;
 use std::time::Duration;
 

@@ -15,9 +15,12 @@ use web::{
 
 use crate::{app_error::AppError, app_state::AppState};
 
+/// The request body for creating a new todo.
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct NewTodoHttp {
+    /// The task text. Must contain at least one non-whitespace character
+    /// after trimming.
     #[validate(length(min = 1))]
     task: String,
 }
@@ -31,12 +34,18 @@ impl From<NewTodoHttp> for NewTodoModel {
     }
 }
 
+/// A todo as returned by every operation that produces one — the HTTP
+/// representation of [`TodoModel`].
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TodoHttp {
+    /// The unique identifier of the todo.
     pub todo_id: Uuid,
+    /// The task text.
     pub task: String,
+    /// When the todo was last created or updated.
     pub updated_at: DateTime<Utc>,
+    /// When the todo was completed, or `null` while it is still open.
     pub completed_at: Option<DateTime<Utc>>,
 }
 
@@ -65,17 +74,23 @@ pub async fn add_todo(
     Ok((StatusCode::CREATED, Json(model.into())))
 }
 
+/// The property that todos are sorted by.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum TodoSortKeyHttp {
+    /// Sort by todo identifier.
     TodoId,
+    /// Sort by last update time.
     UpdatedAt,
 }
 
+/// The direction in which todos are sorted.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum SortOrderHttp {
+    /// Ascending order.
     Asc,
+    /// Descending order.
     Desc,
 }
 
@@ -123,9 +138,16 @@ struct CursorToken {
     updated_at_micros: i64,
 }
 
+/// Query parameters parsed from the list request, ready to hand to the
+/// interactor.
 pub struct ListParams {
+    /// Matches the `todo_id`/`is_completed` query parameters; `None` filters
+    /// are unrestricted.
     pub filter: TodoFilter,
+    /// The effective sort key: explicit from the query, otherwise carried
+    /// over from the cursor token so pages sort consistently.
     pub sort: Sort<TodoSortKey>,
+    /// The decoded cursor position and page size.
     pub cursor: Cursor<TodoCursor>,
 }
 
@@ -173,14 +195,21 @@ impl TryFrom<ListTodosQuery> for ListParams {
     }
 }
 
+/// A page of todos returned by the list operation.
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TodoPageHttp {
+    /// The todos in this page, in the requested sort order.
     pub items: Vec<TodoHttp>,
+    /// An opaque cursor token for fetching the next page, or `null` when this
+    /// is the last page. Pass it as the `cursor` query parameter of the
+    /// follow-up request.
     pub next: Option<String>,
 }
 
 impl TodoPageHttp {
+    /// Builds the response body from the interactor's page, encoding the
+    /// next-page cursor with the sort used for this request.
     #[must_use]
     pub fn new(page: Page<TodoModel, TodoCursor>, sort: Sort<TodoSortKey>) -> Self {
         let next = page.next.map(|cursor| {
@@ -198,16 +227,28 @@ impl TodoPageHttp {
     }
 }
 
+/// The query parameters for listing todos. All parameters are optional; the
+/// `todoId` and `isCompleted` filters combine conjunctively.
 #[derive(Debug, Deserialize, JsonSchema, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ListTodosQuery {
+    /// Restricts results to todos whose identifier is in this list (an empty
+    /// list matches nothing). At most 50 identifiers.
     #[validate(length(max = 50))]
     todo_id: Option<Vec<Uuid>>,
+    /// Restricts results to todos that are completed (`true`) or open
+    /// (`false`).
     is_completed: Option<bool>,
+    /// The property to sort by. Defaults to `todoId`.
     sort: Option<TodoSortKeyHttp>,
+    /// The direction to sort in. Defaults to `asc`.
     order: Option<SortOrderHttp>,
+    /// The maximum number of todos to return, between 1 and 200.
     #[validate(range(min = 1, max = 200))]
     limit: Option<u64>,
+    /// An opaque cursor token from a previous page's `next` field, for
+    /// fetching the next page. Its sort key and order must match `sort` and
+    /// `order` when both are given.
     cursor: Option<String>,
 }
 
@@ -237,8 +278,10 @@ pub async fn list_todos(
     Ok(Json(TodoPageHttp::new(page, sort)))
 }
 
+/// The path parameters identifying a single todo.
 #[derive(Deserialize, Serialize, JsonSchema)]
 pub struct TodoPath {
+    /// The unique identifier of the todo.
     todo_id: Uuid,
 }
 
@@ -256,11 +299,16 @@ pub async fn get_todo(
     Ok(Json(todo.into()))
 }
 
+/// The request body for fully replacing a todo's mutable fields — mirrors
+/// [`TodoUpdateModel`].
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TodoUpdateHttp {
+    /// The new task text. Must contain at least one non-whitespace character
+    /// after trimming.
     #[validate(length(min = 1))]
     task: String,
+    /// The new completion state: `true` marks the todo completed.
     is_completed: bool,
 }
 
