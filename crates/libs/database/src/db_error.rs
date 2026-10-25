@@ -1,6 +1,15 @@
-use thiserror::Error;
+//! Database-layer error type.
+//!
+//! [`DbError`] carries [`sqlx::Error`] context at the source: it wraps the
+//! driver error together with caller-supplied context, plus the
+//! [`DbError::is_unavailable`]/[`DbError::is_conflict`] predicates used to
+//! reason about the failure. Classification into the transport-agnostic
+//! [`StorageError`] taxonomy happens separately, via
+//! `From<DbError> for StorageError` at the bottom of this file — this module
+//! never constructs `StorageError` variants itself.
 
-use storage::storage_error::StorageError;
+use storage::StorageError;
+use thiserror::Error;
 
 #[derive(Debug, Error)]
 #[error("{context}: {source}")]
@@ -20,6 +29,11 @@ impl DbError {
 
     #[must_use]
     pub fn is_unavailable(&self) -> bool {
+        // Deliberate over-classification: any `sqlx::Error::Io(_)` is treated
+        // as availability loss (→ 503 downstream), even though an IO error can
+        // in principle occur mid-query for non-availability reasons. The cost
+        // of an occasional 503 where a 500 would fit is preferred over the cost
+        // of classifying a genuinely dead connection as `Other`.
         matches!(
             self.source,
             sqlx::Error::PoolTimedOut | sqlx::Error::PoolClosed | sqlx::Error::Io(_)

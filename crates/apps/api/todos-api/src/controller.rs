@@ -16,6 +16,10 @@ use crate::{app_error::AppError, app_state::AppState};
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct NewTodoHttp {
+    // The domain rule is the source of truth (`NewTodoModel::has_valid_task`,
+    // non-empty after trimming); `min = 1` mirrors it at the HTTP boundary.
+    // Whitespace-only tasks pass this schema check and are rejected by the
+    // interactor with `TodoError::EmptyTask` → 400.
     #[validate(length(min = 1))]
     task: String,
 }
@@ -141,6 +145,9 @@ pub struct ListParams {
 }
 
 impl TryFrom<ListTodosQuery> for ListParams {
+    // Cursor errors follow the two-tier policy (see `CursorError` docs):
+    // Malformed (decode/parse failure, including a bad timestamp) → 400,
+    // SortMismatch (valid token, mismatched sort/order) → 422.
     type Error = CursorError;
 
     fn try_from(query: ListTodosQuery) -> Result<Self, CursorError> {
@@ -213,9 +220,11 @@ impl TodoPageHttp {
 ///
 /// # Errors
 ///
-/// Returns [`AppError`] as a `400 Bad Request` if the query is malformed
-/// or the cursor token is invalid, or a `500 Internal Server Error`
-/// if storage fails.
+/// Returns [`AppError`] as a `400 Bad Request` if the query fails validation
+/// or the cursor token is *malformed* (base64/JSON decode failure), as a
+/// `422 Unprocessable Entity` if the cursor is *invalid* (decodes but its
+/// sort/order does not match the request), or as a
+/// `500 Internal Server Error` if storage fails.
 pub async fn list_todos(
     State(app_state): State<AppState>,
     ValidatedQuery(query): ValidatedQuery<ListTodosQuery>,

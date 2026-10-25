@@ -1,10 +1,8 @@
 use std::sync::Arc;
 
-use aide::axum::routing::get_with;
-use aide::axum::{ApiRouter, routing::post_with};
+use aide::axum::{ApiRouter, routing::get_with, routing::post_with};
 use aide::openapi::{Info, OpenApi};
-use axum::routing::get;
-use axum::{Extension, Json, Router};
+use axum::{Extension, Json, Router, routing::get};
 
 use web::api_error::ErrorBody;
 
@@ -13,11 +11,16 @@ use crate::{
     controller::{self, TodoHttp, TodoPageHttp},
 };
 
+/// Builds the todos HTTP router with aide-generated `OpenAPI` documentation.
+///
+/// All business routes are mounted via [`ApiRouter::api_route`] so handlers and
+/// error responses are documented; the router carries the extension layer with
+/// the generated [`OpenApi`] document served at `/openapi.json`.
 pub fn create_todos_api(app_state: AppState) -> Router {
     let mut api = OpenApi {
         info: Info {
             title: "Todos API".into(),
-            version: "0.1.0".into(),
+            version: env!("CARGO_PKG_VERSION").into(),
             ..Info::default()
         },
         ..OpenApi::default()
@@ -37,6 +40,8 @@ pub fn create_todos_api(app_state: AppState) -> Router {
         )
         .api_route(
             "/v1/todos",
+            // Both operations share the same path, so the `GET` (listTodos) is
+            // attached to the `POST` (addTodo) on a single `api_route` call.
             post_with(controller::add_todo, |op| {
                 web::openapi::standard_post_errors(
                     op.id("addTodo")
@@ -52,7 +57,9 @@ pub fn create_todos_api(app_state: AppState) -> Router {
                 )
             }),
         )
-        .route("/openapi.json", get(web::openapi::serve))
+        // Bypasses `api_route` on purpose: the doc endpoint serves the generated
+        // document rather than being documented itself.
+        .route("/openapi.json", get(web::openapi::openapi_json))
         .with_state(app_state)
         .finish_api(&mut api)
         .layer(Extension(Arc::new(api)))

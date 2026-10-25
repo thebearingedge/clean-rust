@@ -8,6 +8,12 @@ use axum::{
 use tower_http::trace::{DefaultOnFailure, MakeSpan, OnResponse, TraceLayer};
 use tracing::{Level, Span};
 
+/// `MakeSpan` implementation following the OpenTelemetry HTTP server
+/// semantic conventions: `otel.name` is `"{method} {route}"` (method alone
+/// when no route matched), `otel.kind` is `"server"`, and the standard
+/// fields (`http.request.method`, `http.route`, `url.path`,
+/// `http.response.status_code`) are recorded. The incoming parent context is
+/// linked from the request headers via `telemetry::propagation::link_parent`.
 #[derive(Clone, Copy)]
 pub struct HttpMakeSpan;
 
@@ -37,6 +43,8 @@ impl<B> MakeSpan<B> for HttpMakeSpan {
     }
 }
 
+/// `OnResponse` implementation that records the response status into the
+/// span's `http.response.status_code` field.
 #[derive(Clone, Copy)]
 pub struct HttpOnResponse;
 
@@ -46,6 +54,10 @@ impl<B> OnResponse<B> for HttpOnResponse {
     }
 }
 
+/// Wraps `router` with a [`TraceLayer`] using the OTel-convention span from
+/// [`HttpMakeSpan`], recording the status code on response via
+/// [`HttpOnResponse`] and logging failures at ERROR level. Requests and
+/// responses are not logged.
 pub fn with_http_tracing(router: Router) -> Router {
     router.layer(
         TraceLayer::new_for_http()

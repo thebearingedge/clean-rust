@@ -1,6 +1,6 @@
 use sqlx::PgPool;
 
-use crate::db_error::{DbContext, DbError};
+use crate::{DbContext, DbError};
 
 /// # Errors
 ///

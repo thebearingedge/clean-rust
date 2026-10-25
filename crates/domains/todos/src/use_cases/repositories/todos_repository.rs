@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use futures::{Stream, TryStreamExt};
 use uuid::Uuid;
 
-use storage::storage_error::StorageError;
+use storage::StorageError;
 use utils::pagination::{Cursor, Sort, SortOrder};
 
 use crate::models::todo::{NewTodoModel, TodoCursor, TodoFilter, TodoModel, TodoSortKey};
