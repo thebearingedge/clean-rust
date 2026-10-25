@@ -17,14 +17,29 @@ use serde_path_to_error::{Path as ErrorPath, Segment};
 
 use crate::api_error::{ApiError, ValidationDetail, ValidationErrorBody};
 
+/// Supplies the JSON-Schema [`Validator`] that the [`ValidatedJson`],
+/// [`ValidatedQuery`], and [`ValidatedPath`] extractors enforce for type `T`.
+/// Implemented by the app state; the validators typically come from
+/// `schemars::schema_for!` of the request types.
 pub trait HasSchema<T> {
     fn validator_for(&self) -> &Validator;
 }
 
-fn body_location(pointer: &str) -> String {
+const SCHEMA_VIOLATION: &str = "schema violation";
+
+/// Location formatter for JSON request bodies: the schema's JSON Pointer is
+/// already the client-facing location, so it is passed through verbatim.
+fn raw_pointer(pointer: &str) -> String {
     pointer.to_owned()
 }
 
+/// A JSON request body validated against the JSON schema supplied by the
+/// app state ([`HasSchema`]).
+///
+/// On failure the rejection is a 422 [`ValidationErrorBody`]. Each
+/// [`ValidationDetail::path`] is a JSON Pointer into the request body
+/// (e.g. `/task`); see [`ValidationDetail`] in `api_error.rs` for the full
+/// location convention shared by all `Validated*` extractors.
 pub struct ValidatedJson<T>(pub T);
 
 impl<S, T> FromRequest<S> for ValidatedJson<T>
@@ -39,7 +54,7 @@ where
             .await
             .map_err(|e| ApiError::message(e.status(), &e.body_text()))?;
 
-        validate_instance(app_state.validator_for(), &data, body_location)?;
+        validate_instance(app_state.validator_for(), &data, raw_pointer)?;
 
         let t: T = serde_json::from_value(data).map_err(|e| {
             ApiError::new(
@@ -71,7 +86,7 @@ fn parameter_error(path: String, message: String) -> ApiError {
     ApiError::new(
         StatusCode::UNPROCESSABLE_ENTITY,
         &ValidationErrorBody {
-            error: "schema violation".into(),
+            error: SCHEMA_VIOLATION.into(),
             details: Some(vec![ValidationDetail { path, message }]),
         },
     )
@@ -99,6 +114,14 @@ fn query_location(pointer: &str) -> String {
     }
 }
 
+/// A URL query string deserialized into `T` and validated against the JSON
+/// schema supplied by the app state ([`HasSchema`]).
+///
+/// On failure the rejection is a 422 [`ValidationErrorBody`] whose
+/// [`ValidationDetail::path`] names the offending query parameter as
+/// `?name=`, with a zero-based index appended for repeated parameters
+/// (`?name[1]=`) and `?` for a missing or wholly malformed query string; see
+/// [`ValidationDetail`] in `api_error.rs` for the full location convention.
 pub struct ValidatedQuery<T>(pub T);
 
 impl<S, T> FromRequestParts<S> for ValidatedQuery<T>
@@ -151,6 +174,13 @@ fn path_location(pointer: &str) -> String {
         .map_or_else(String::new, |name| format!("{{{name}}}"))
 }
 
+/// A path parameter set deserialized into `T` and validated against the JSON
+/// schema supplied by the app state ([`HasSchema`]).
+///
+/// On failure the rejection is a 422 [`ValidationErrorBody`] whose
+/// [`ValidationDetail::path`] names the offending parameter as `{name}`,
+/// matching the route's placeholder syntax; see [`ValidationDetail`] in
+/// `api_error.rs` for the full location convention.
 pub struct ValidatedPath<T>(pub T);
 
 impl<S, T> FromRequestParts<S> for ValidatedPath<T>
@@ -209,7 +239,7 @@ fn validate_instance(
     Err(ApiError::new(
         StatusCode::UNPROCESSABLE_ENTITY,
         &ValidationErrorBody {
-            error: "schema violation".into(),
+            error: SCHEMA_VIOLATION.into(),
             details: Some(details),
         },
     ))

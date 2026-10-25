@@ -2,15 +2,15 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use sea_query::extension::postgres::PgExpr;
-use sea_query::{Expr, ExprTrait, Iden, Order, PostgresQueryBuilder, Query};
+use sea_query::{Expr, ExprTrait, Iden, Order, PostgresQueryBuilder, Query, SimpleExpr};
 use sea_query_sqlx::SqlxBinder;
 use sqlx::{self, AssertSqlSafe, PgPool};
 use tracing::instrument;
 use tracing_futures::Instrument;
 use uuid::Uuid;
 
-use database::db_error::DbContext;
-use storage::storage_error::StorageError;
+use database::DbContext;
+use storage::StorageError;
 use utils::pagination::{Cursor, Sort, SortOrder};
 
 use crate::models::todo::{NewTodoModel, TodoCursor, TodoFilter, TodoModel, TodoSortKey};
@@ -72,6 +72,10 @@ impl Interface for TodosRepository {
             ]))
             .build_sqlx(PostgresQueryBuilder);
 
+        // `AssertSqlSafe` marks the sea-query-generated SQL (numbered bind
+        // placeholders produced via `SqlxBinder`) as trusted so sqlx prepares
+        // and caches it like any static query instead of treating it as
+        // unchecked dynamic SQL.
         sqlx::query_as_with::<_, TodoRow, _>(AssertSqlSafe(text), values)
             .fetch_one(&self.service)
             .await
@@ -91,6 +95,9 @@ impl Interface for TodosRepository {
             SortOrder::Desc => Order::Desc,
         };
         let sort_columns: &[Todos] = match sort.key {
+            // The cursor tuple must correspond to this sort key: `UpdatedAt`
+            // sorts carry the `todo_id` tiebreaker so `(updated_at, todo_id)`
+            // is a total order (see `cursor_predicate`).
             TodoSortKey::TodoId => &[Todos::TodoId],
             TodoSortKey::UpdatedAt => &[Todos::UpdatedAt, Todos::TodoId],
         };
@@ -113,20 +120,7 @@ impl Interface for TodosRepository {
                 });
             })
             .apply_if(cursor.after, |q, after| {
-                let updated =
-                    || Expr::tuple([Expr::col(Todos::UpdatedAt), Expr::col(Todos::TodoId)]);
-                let position =
-                    || Expr::tuple([Expr::value(after.updated_at), Expr::value(after.todo_id)]);
-                q.and_where(match (sort.key, sort.order) {
-                    (TodoSortKey::TodoId, SortOrder::Asc) => {
-                        Expr::col(Todos::TodoId).gt(after.todo_id)
-                    }
-                    (TodoSortKey::TodoId, SortOrder::Desc) => {
-                        Expr::col(Todos::TodoId).lt(after.todo_id)
-                    }
-                    (TodoSortKey::UpdatedAt, SortOrder::Asc) => updated().gt(position()),
-                    (TodoSortKey::UpdatedAt, SortOrder::Desc) => updated().lt(position()),
-                });
+                q.and_where(cursor_predicate(sort.key, sort.order, after));
             })
             .order_by_columns(sort_columns.iter().map(|c| (*c, direction.clone())))
             .apply_if(cursor.limit, |q, v| {
@@ -134,6 +128,7 @@ impl Interface for TodosRepository {
             })
             .build_sqlx(PostgresQueryBuilder);
 
+        // Same `AssertSqlSafe` invariant as in `add` above.
         sqlx::query_as_with::<_, TodoRow, _>(AssertSqlSafe(text), values)
             .fetch(&self.service)
             .map(|row| {
@@ -143,5 +138,22 @@ impl Interface for TodosRepository {
             })
             .instrument(tracing::Span::current())
             .boxed()
+    }
+}
+
+/// Builds the seek predicate for `cursor.after` against the chosen sort key.
+///
+/// Invariant: the cursor tuple must match the sort key — by
+/// [`TodoSortKey::TodoId`] only `todo_id` participates in the comparison; by
+/// [`TodoSortKey::UpdatedAt`] the `(updated_at, todo_id)` tuple is compared
+/// positionally so rows sharing an `updated_at` still have a total order.
+fn cursor_predicate(sort_key: TodoSortKey, order: SortOrder, after: TodoCursor) -> SimpleExpr {
+    let updated = Expr::tuple([Expr::col(Todos::UpdatedAt), Expr::col(Todos::TodoId)]);
+    let position = Expr::tuple([Expr::value(after.updated_at), Expr::value(after.todo_id)]);
+    match (sort_key, order) {
+        (TodoSortKey::TodoId, SortOrder::Asc) => Expr::col(Todos::TodoId).gt(after.todo_id),
+        (TodoSortKey::TodoId, SortOrder::Desc) => Expr::col(Todos::TodoId).lt(after.todo_id),
+        (TodoSortKey::UpdatedAt, SortOrder::Asc) => updated.gt(position),
+        (TodoSortKey::UpdatedAt, SortOrder::Desc) => updated.lt(position),
     }
 }

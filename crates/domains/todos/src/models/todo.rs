@@ -8,20 +8,27 @@ pub struct NewTodoModel {
 }
 
 impl NewTodoModel {
+    /// A task is valid when it contains at least one non-whitespace
+    /// character after trimming.
     #[must_use]
     pub fn has_valid_task(&self) -> bool {
-        self.task.trim().len() > 1
+        !self.task.trim().is_empty()
     }
 }
 
+/// A todo as stored by the repository. Field order matches the `TodoRow`
+/// struct and the SQL `returning` clause in the postgres adapter.
 #[derive(Debug)]
 pub struct TodoModel {
     pub todo_id: Uuid,
     pub task: String,
-    pub updated_at: DateTime<Utc>,
     pub completed_at: Option<DateTime<Utc>>,
+    pub updated_at: DateTime<Utc>,
 }
 
+/// Filter for listing todos. All fields are optional conjunctive filters;
+/// `todo_id` is "any-of" semantics — when present, only todos whose id is in
+/// the list are returned (an empty list matches nothing).
 #[derive(Debug, Default)]
 pub struct TodoFilter {
     pub todo_id: Option<Vec<Uuid>>,
@@ -35,6 +42,12 @@ pub enum TodoSortKey {
     UpdatedAt,
 }
 
+/// Opaque pagination cursor position for a todo.
+///
+/// The `updated_at`/`todo_id` pair is the composite key used when sorting by
+/// `TodoSortKey::UpdatedAt`; when sorting by `TodoSortKey::TodoId` only
+/// `todo_id` participates in the seek predicate. The tuple must always
+/// correspond to the sort key chosen in `stream_by_filter`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TodoCursor {
     pub todo_id: Uuid,

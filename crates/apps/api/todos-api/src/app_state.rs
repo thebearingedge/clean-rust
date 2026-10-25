@@ -4,7 +4,7 @@ use jsonschema::Validator;
 use schemars::JsonSchema;
 use sqlx::PgPool;
 
-use todos::{TodosInteractor, repositories::postgres::TodosRepository};
+use todos::{TodosInteractor, TodosRepository};
 use web::extractors::HasSchema;
 
 use crate::controller::{ListTodosQuery, NewTodoHttp, TodoPath};
@@ -35,11 +35,17 @@ impl AppState {
     }
 }
 
+/// The domain half of the two-part app state: the use-case interactors the
+/// handlers call into, backed by concrete repository adapters constructed in
+/// [`AppState::new`].
 #[derive(Clone, Debug)]
 pub struct Interactors {
     pub todos: TodosInteractor,
 }
 
+/// The request-validation half of the two-part app state: one JSON-schema
+/// [`Validator`] per request DTO, keyed by the [`HasSchema`] impls on
+/// [`AppState`] so the validated extractors can look them up.
 #[derive(Clone, Debug)]
 pub struct Schemas {
     add_todo: Validator,

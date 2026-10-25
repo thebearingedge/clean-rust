@@ -19,6 +19,12 @@ impl Extractor for HeaderExtractor<'_> {
     }
 }
 
+/// Links `span` to the parent trace context carried in `headers`, if any.
+///
+/// Best effort and silent: a missing or invalid parent context is ignored and
+/// `span` simply stays a root span, and the result of
+/// [`OpenTelemetrySpanExt::set_parent`] is discarded (the context was already
+/// validated above). Propagation must never fail the surrounding request path.
 pub fn link_parent(span: &Span, headers: &HeaderMap) {
     let parent = global::get_text_map_propagator(|p| p.extract(&HeaderExtractor(headers)));
     if parent.span().span_context().is_valid() {
@@ -26,6 +32,12 @@ pub fn link_parent(span: &Span, headers: &HeaderMap) {
     }
 }
 
+/// [`Injector`] adapter that writes trace context into a [`HeaderMap`].
+///
+/// `set` deliberately drops invalid header names/values without logging: the
+/// [`Injector`] trait offers no error channel, the only way a value can be
+/// invalid here is a broken propagator, and dropping it degrades the request
+/// to "not traced" rather than failing it.
 struct HeaderInjector<'a>(&'a mut HeaderMap);
 
 impl Injector for HeaderInjector<'_> {
@@ -39,10 +51,12 @@ impl Injector for HeaderInjector<'_> {
     }
 }
 
+/// Writes `cx`'s trace context into `headers` using the global propagator.
 pub fn inject_context(cx: &Context, headers: &mut HeaderMap) {
     global::get_text_map_propagator(|p| p.inject_context(cx, &mut HeaderInjector(headers)));
 }
 
+/// Writes the current span's trace context into `headers`.
 pub fn inject_current(headers: &mut HeaderMap) {
     inject_context(&Span::current().context(), headers);
 }

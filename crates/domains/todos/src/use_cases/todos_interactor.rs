@@ -1,29 +1,16 @@
 use std::sync::Arc;
 
 use futures::TryStreamExt;
-use thiserror::Error;
+use tracing::instrument;
 use uuid::Uuid;
 
-use storage::storage_error::StorageError;
-use tracing::instrument;
 use utils::pagination::{Cursor, Page, Sort};
 
 use crate::{
     models::todo::{NewTodoModel, TodoCursor, TodoFilter, TodoModel, TodoSortKey},
     use_cases::repositories::TodosRepository,
+    use_cases::todo_error::TodoError,
 };
-
-#[derive(Debug, Error)]
-pub enum TodoError {
-    #[error("task must not be empty")]
-    EmptyTask,
-
-    #[error("todo not found")]
-    NotFound,
-
-    #[error(transparent)]
-    Storage(#[from] StorageError),
-}
 
 const DEFAULT_PAGE_SIZE: u64 = 50;
 const MAX_PAGE_SIZE: u64 = 200;
@@ -34,6 +21,7 @@ pub struct TodosInteractor {
 }
 
 impl TodosInteractor {
+    #[must_use]
     pub fn new(repository: Arc<dyn TodosRepository>) -> Self {
         Self { repository }
     }
@@ -54,14 +42,12 @@ impl TodosInteractor {
 
     /// # Errors
     ///
-    /// Returns [`TodoError::NotFound`] if the todo does not exist,
-    /// or [`TodoError::Storage`] if there is a persistence failure.
+    /// Returns [`TodoError::NotFound`] if the todo does not exist, or
+    /// [`TodoError::Storage`] if the repository cannot be read. Lookup is
+    /// delegated entirely to the repository; malformed or non-existent IDs
+    /// surface as [`TodoError::NotFound`].
     #[instrument(skip_all)]
     pub async fn get_by_id(&self, todo_id: Uuid) -> Result<TodoModel, TodoError> {
-        if todo_id.get_version_num() != 7 {
-            return Err(TodoError::NotFound);
-        }
-
         self.repository
             .get_by_id(todo_id)
             .await?
