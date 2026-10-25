@@ -1,6 +1,6 @@
 //! `OpenAPI` helpers: the `/openapi.json` handler and the standard
 //! error-response transforms that every operation should apply
-//! (`standard_get_errors`/`standard_post_errors`).
+//! (`standard_get_errors`/`standard_post_errors`/`standard_put_errors`).
 
 use std::{future::Ready, sync::Arc};
 
@@ -13,10 +13,6 @@ use crate::api_error::{ErrorBody, ValidationErrorBody};
 ///
 /// Mount it on the `/openapi.json` route; it requires the
 /// `Extension<Arc<OpenApi>>` layer installed by `ApiRouter::finish_api`.
-///
-/// The handler is sync and returns an already-ready future (axum's `Handler`
-/// is implemented for functions producing futures, not plain responses), so
-/// no `#[allow(clippy::unused_async)]` is needed.
 pub fn openapi_json(Extension(api): Extension<Arc<OpenApi>>) -> Ready<Json<Arc<OpenApi>>> {
     std::future::ready(Json(api))
 }
@@ -39,5 +35,11 @@ pub fn standard_get_errors(op: TransformOperation<'_>) -> TransformOperation<'_>
 /// Documents the standard error responses of a POST operation: the GET set
 /// plus 415 (unsupported media type).
 pub fn standard_post_errors(op: TransformOperation<'_>) -> TransformOperation<'_> {
+    standard_errors(op).response::<415, Json<ErrorBody>>()
+}
+
+/// Documents the standard error responses of a PUT operation: the GET
+/// set plus 415 (unsupported media type).
+pub fn standard_put_errors(op: TransformOperation<'_>) -> TransformOperation<'_> {
     standard_errors(op).response::<415, Json<ErrorBody>>()
 }

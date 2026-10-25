@@ -65,6 +65,26 @@ pub async fn post_json(router: Router, uri: &str, body: &impl Serialize) -> Resp
     post_body(router, uri, Some("application/json"), bytes.into()).await
 }
 
+/// Sends a `PUT` request with a JSON-encoded `body` and the
+/// `application/json` content type, then collects the interesting parts of
+/// the response.
+pub async fn put_json(router: Router, uri: &str, body: &impl Serialize) -> ResponseParts {
+    let bytes = serde_json::to_vec(body).expect("JSON request body should serialize");
+    let request = Request::builder()
+        .method(Method::PUT)
+        .uri(uri)
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(bytes))
+        .expect("PUT request should be buildable");
+    get_response_parts(
+        router
+            .oneshot(request)
+            .await
+            .expect("PUT request should be handled"),
+    )
+    .await
+}
+
 /// Sends a `POST` request with a raw `body`, optionally setting the
 /// `Content-Type` header, then collects the interesting parts of the response.
 ///

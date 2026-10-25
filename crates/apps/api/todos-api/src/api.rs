@@ -36,12 +36,18 @@ pub fn create_todos_api(app_state: AppState) -> Router {
                         .response::<200, Json<TodoHttp>>()
                         .response::<404, Json<ErrorBody>>(),
                 )
+            })
+            .put_with(controller::update_todo, |op| {
+                web::openapi::standard_put_errors(
+                    op.id("updateTodo")
+                        .summary("Update a todo")
+                        .response::<200, Json<TodoHttp>>()
+                        .response::<404, Json<ErrorBody>>(),
+                )
             }),
         )
         .api_route(
             "/v1/todos",
-            // Both operations share the same path, so the `GET` (listTodos) is
-            // attached to the `POST` (addTodo) on a single `api_route` call.
             post_with(controller::add_todo, |op| {
                 web::openapi::standard_post_errors(
                     op.id("addTodo")
@@ -57,8 +63,6 @@ pub fn create_todos_api(app_state: AppState) -> Router {
                 )
             }),
         )
-        // Bypasses `api_route` on purpose: the doc endpoint serves the generated
-        // document rather than being documented itself.
         .route("/openapi.json", get(web::openapi::openapi_json))
         .with_state(app_state)
         .finish_api(&mut api)

@@ -16,8 +16,23 @@ impl NewTodoModel {
     }
 }
 
-/// A todo as stored by the repository. Field order matches the `TodoRow`
-/// struct and the SQL `returning` clause in the postgres adapter.
+/// Full-replace update input for a todo.
+#[derive(Debug, Clone)]
+pub struct TodoUpdateModel {
+    pub task: String,
+    pub is_completed: bool,
+}
+
+impl TodoUpdateModel {
+    /// A task is valid when it contains at least one non-whitespace
+    /// character after trimming.
+    #[must_use]
+    pub fn has_valid_task(&self) -> bool {
+        !self.task.trim().is_empty()
+    }
+}
+
+/// A todo as stored by the repository.
 #[derive(Debug)]
 pub struct TodoModel {
     pub todo_id: Uuid,

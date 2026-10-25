@@ -4,7 +4,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use todos::models::todo::{NewTodoModel, TodoCursor, TodoFilter, TodoModel, TodoSortKey};
+use todos::models::todo::{
+    NewTodoModel, TodoCursor, TodoFilter, TodoModel, TodoSortKey, TodoUpdateModel,
+};
 use utils::pagination::{Cursor, Page, Sort, SortOrder};
 use web::{
     cursor_token::CursorError,
@@ -16,10 +18,6 @@ use crate::{app_error::AppError, app_state::AppState};
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct NewTodoHttp {
-    // The domain rule is the source of truth (`NewTodoModel::has_valid_task`,
-    // non-empty after trimming); `min = 1` mirrors it at the HTTP boundary.
-    // Whitespace-only tasks pass this schema check and are rejected by the
-    // interactor with `TodoError::EmptyTask` → 400.
     #[validate(length(min = 1))]
     task: String,
 }
@@ -69,28 +67,28 @@ pub async fn add_todo(
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
-pub enum SortKeyHttp {
+pub enum TodoSortKeyHttp {
     TodoId,
     UpdatedAt,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
-pub enum OrderHttp {
+pub enum SortOrderHttp {
     Asc,
     Desc,
 }
 
-impl From<SortKeyHttp> for TodoSortKey {
-    fn from(key: SortKeyHttp) -> Self {
+impl From<TodoSortKeyHttp> for TodoSortKey {
+    fn from(key: TodoSortKeyHttp) -> Self {
         match key {
-            SortKeyHttp::TodoId => Self::TodoId,
-            SortKeyHttp::UpdatedAt => Self::UpdatedAt,
+            TodoSortKeyHttp::TodoId => Self::TodoId,
+            TodoSortKeyHttp::UpdatedAt => Self::UpdatedAt,
         }
     }
 }
 
-impl From<TodoSortKey> for SortKeyHttp {
+impl From<TodoSortKey> for TodoSortKeyHttp {
     fn from(key: TodoSortKey) -> Self {
         match key {
             TodoSortKey::TodoId => Self::TodoId,
@@ -99,16 +97,16 @@ impl From<TodoSortKey> for SortKeyHttp {
     }
 }
 
-impl From<OrderHttp> for SortOrder {
-    fn from(order: OrderHttp) -> Self {
+impl From<SortOrderHttp> for SortOrder {
+    fn from(order: SortOrderHttp) -> Self {
         match order {
-            OrderHttp::Asc => Self::Asc,
-            OrderHttp::Desc => Self::Desc,
+            SortOrderHttp::Asc => Self::Asc,
+            SortOrderHttp::Desc => Self::Desc,
         }
     }
 }
 
-impl From<SortOrder> for OrderHttp {
+impl From<SortOrder> for SortOrderHttp {
     fn from(order: SortOrder) -> Self {
         match order {
             SortOrder::Asc => Self::Asc,
@@ -119,23 +117,10 @@ impl From<SortOrder> for OrderHttp {
 
 #[derive(Deserialize, Serialize)]
 struct CursorToken {
-    sort: SortKeyHttp,
-    order: OrderHttp,
+    sort: TodoSortKeyHttp,
+    order: SortOrderHttp,
     todo_id: Uuid,
     updated_at_micros: i64,
-}
-
-#[derive(Debug, Deserialize, JsonSchema, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ListTodosQuery {
-    #[validate(length(max = 50))]
-    todo_id: Option<Vec<Uuid>>,
-    is_completed: Option<bool>,
-    sort: Option<SortKeyHttp>,
-    order: Option<OrderHttp>,
-    #[validate(range(min = 1, max = 200))]
-    limit: Option<u64>,
-    cursor: Option<String>,
 }
 
 pub struct ListParams {
@@ -145,9 +130,6 @@ pub struct ListParams {
 }
 
 impl TryFrom<ListTodosQuery> for ListParams {
-    // Cursor errors follow the two-tier policy (see `CursorError` docs):
-    // Malformed (decode/parse failure, including a bad timestamp) → 400,
-    // SortMismatch (valid token, mismatched sort/order) → 422.
     type Error = CursorError;
 
     fn try_from(query: ListTodosQuery) -> Result<Self, CursorError> {
@@ -216,6 +198,19 @@ impl TodoPageHttp {
     }
 }
 
+#[derive(Debug, Deserialize, JsonSchema, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListTodosQuery {
+    #[validate(length(max = 50))]
+    todo_id: Option<Vec<Uuid>>,
+    is_completed: Option<bool>,
+    sort: Option<TodoSortKeyHttp>,
+    order: Option<SortOrderHttp>,
+    #[validate(range(min = 1, max = 200))]
+    limit: Option<u64>,
+    cursor: Option<String>,
+}
+
 /// Lists todos by filter with cursor-based pagination.
 ///
 /// # Errors
@@ -258,5 +253,43 @@ pub async fn get_todo(
     ValidatedPath(path): ValidatedPath<TodoPath>,
 ) -> Result<Json<TodoHttp>, AppError> {
     let todo = app_state.interactors.todos.get_by_id(path.todo_id).await?;
+    Ok(Json(todo.into()))
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct TodoUpdateHttp {
+    #[validate(length(min = 1))]
+    task: String,
+    is_completed: bool,
+}
+
+impl From<TodoUpdateHttp> for TodoUpdateModel {
+    fn from(update: TodoUpdateHttp) -> Self {
+        TodoUpdateModel {
+            task: update.task,
+            is_completed: update.is_completed,
+        }
+    }
+}
+
+/// Fully replaces a todo's mutable fields and returns the updated todo.
+///
+/// # Errors
+///
+/// Returns [`AppError`] as a `400 Bad Request` if the task is empty,
+/// a `404 Not Found` if the todo doesn't exist, or a
+/// `500 Internal Server Error` / `503 Service Unavailable` on storage
+/// failure.
+pub async fn update_todo(
+    State(app_state): State<AppState>,
+    ValidatedPath(path): ValidatedPath<TodoPath>,
+    ValidatedJson(update): ValidatedJson<TodoUpdateHttp>,
+) -> Result<Json<TodoHttp>, AppError> {
+    let todo = app_state
+        .interactors
+        .todos
+        .update(path.todo_id, &update.into())
+        .await?;
     Ok(Json(todo.into()))
 }
