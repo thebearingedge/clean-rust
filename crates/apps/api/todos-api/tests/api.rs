@@ -255,7 +255,7 @@ mod tests {
         assert_eq!(content_type, "application/json");
         assert_json_include!(actual: data, expected: serde_json::json!({
             "error": "todo not found"
-        }))
+        }));
     }
 
     #[sqlx::test(migrator = "todos::MIGRATOR")]
@@ -277,7 +277,7 @@ mod tests {
         assert_json_include!(actual: data, expected: serde_json::json!({
             "details": [{ "path": "{todo_id}" }],
             "error": "schema violation"
-        }))
+        }));
     }
 
     #[sqlx::test(migrator = "todos::MIGRATOR", fixtures("list_todos"))]

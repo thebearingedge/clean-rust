@@ -49,6 +49,12 @@ impl From<TodoModel> for TodoHttp {
     }
 }
 
+/// Adds a new todo and returns it with a `201 Created` status.
+///
+/// # Errors
+///
+/// Returns [`AppError`] as a `400 Bad Request` if the task is empty,
+/// or a `500 Internal Server Error` if storage fails.
 pub async fn add_todo(
     State(app_state): State<AppState>,
     ValidatedJson(new_todo): ValidatedJson<NewTodoHttp>,
@@ -203,6 +209,13 @@ impl TodoPageHttp {
     }
 }
 
+/// Lists todos by filter with cursor-based pagination.
+///
+/// # Errors
+///
+/// Returns [`AppError`] as a `400 Bad Request` if the query is malformed
+/// or the cursor token is invalid, or a `500 Internal Server Error`
+/// if storage fails.
 pub async fn list_todos(
     State(app_state): State<AppState>,
     ValidatedQuery(query): ValidatedQuery<ListTodosQuery>,
@@ -225,7 +238,12 @@ pub struct TodoPath {
     todo_id: Uuid,
 }
 
-#[axum::debug_handler]
+/// Gets a single todo by its ID.
+///
+/// # Errors
+///
+/// Returns [`AppError`] as a `404 Not Found` if the todo doesn't exist,
+/// or a `500 Internal Server Error` if storage fails.
 pub async fn get_todo(
     State(app_state): State<AppState>,
     ValidatedPath(path): ValidatedPath<TodoPath>,

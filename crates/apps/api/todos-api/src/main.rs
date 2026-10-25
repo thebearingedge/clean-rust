@@ -6,7 +6,6 @@ use axum::serve;
 use sqlx::postgres::PgPoolOptions;
 use tokio::net::TcpListener;
 
-use database;
 use telemetry::provider::init_tracer_provider;
 use todos::MIGRATOR;
 use web::{
