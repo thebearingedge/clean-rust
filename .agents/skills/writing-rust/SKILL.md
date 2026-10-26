@@ -5,7 +5,7 @@ description: Writing or modifying Rust code in the clean-rust workspace. Use whe
 
 # Writing Rust in clean-rust
 
-Read `AGENTS.md` at the repo root first — it holds the hard rules (no commits without permission, `issue-N/short-description` branches only, no secrets anywhere, scratch files in `.agents/temp/`, never `/tmp`).
+Read `AGENTS.md` at the repo root first — it holds the hard rules (commit policy, branch naming, secrets, dependency policy, scratch locations).
 
 Adding a new HTTP endpoint to an API app? Follow the `adding-an-endpoint` skill — it expands the inside-out workflow below into the endpoint-specific playbook (DTO naming, OpenAPI wiring, validation, error mapping, per-handler test layout).
 
@@ -44,7 +44,7 @@ Leaks to avoid (found in past reviews):
 - **Error types**: one dedicated file per crate/layer named `<thing>_error.rs`, using `thiserror`. When wrapping a source error, interpolate `{source}` in the `#[error(...)]` message so diagnostics survive `Display`. If a struct-variant split (like `DbError` → `StorageError` classification) is intentional, document it at the top of the file. (The app-layer HTTP error envelope convention is endpoint-specific — see `adding-an-endpoint`.)
 - **Modules**: multi-file modules use the file-and-folder pattern — `mod.rs`-style parent file (`repositories.rs`) alongside its directory (`repositories/todos_repository.rs`). New sibling modules should match.
 - **Validation**: single source of truth. If a domain model validates (e.g. min length), don't re-encode the rule in the delivery layer (or make them agree); error messages must match the actual rule (`EmptyTask` shouldn't be raised when the real rule is "more than one character").
-- **Dependencies**: workspace deps come from the root `Cargo.toml` `[workspace.dependencies]` — reference with `workspace = true`. Before proposing a new third-party dependency, check that no existing workspace dependency already covers the need. Looking up the latest version of a crate (crates.io/docs.rs) is fine, but never add or upgrade a dependency without explicit human permission — propose the crate, version, and reason first, then wait. Never declare a dep a crate doesn't use (unused `uuid`, `thiserror`, `axum` were all flagged). Don't hand-edit `Cargo.lock`; CI builds `--locked`.
+- **Dependencies**: workspace deps come from the root `Cargo.toml` `[workspace.dependencies]` — reference with `workspace = true`. Before proposing a new third-party dependency, check that no existing workspace dependency already covers the need. Looking up the latest version of a crate (crates.io/docs.rs) is fine, but never add or upgrade a dependency without explicit human permission — propose the crate, version, and reason first, then wait. Never declare a dep a crate doesn't use (unused `uuid`, `thiserror`, `axum` were all flagged).
 - **Magic numbers** in shared plumbing (timeouts, limits): accept them as parameters or name them as constants — no bare literals with no configuration path.
 
 ## Before you finish
@@ -59,4 +59,4 @@ Run from the repo root (tooling needs direnv active — see `AGENTS.md`):
 
 Use the `just` recipes above instead of bare `cargo` commands — they wire in env files and keep one place for flags.
 
-Never commit anything. `.agents/temp/` is your scratch/output area — put notes, plans, and generated artifacts there, never in `coverage/`, `target/`, or the repo root.
+Commits are governed by the `AGENTS.md` hard rules (explicit human permission; the commit is performed by the human or the built-in `build` agent). `.agents/temp/` is your scratch/output area — put notes, plans, and generated artifacts there (forbidden locations: see `AGENTS.md`).
