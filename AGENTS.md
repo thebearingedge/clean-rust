@@ -18,6 +18,7 @@ Stack: axum, sqlx (Postgres), sea-query, opentelemetry, tracing, thiserror.
 - Never add or upgrade a dependency without explicit human permission; looking up the latest version is fine.
 - Scratch/output lives in `.agents/temp/` (gitignored) and never in `/tmp`, the repo root, `src/`, `coverage/`, or `target/`. Worktrees stay under `.agents/temp/`.
 - Never operate outside the project root.
+- Plan artifacts always live in `.agents/temp/issue-N-short-description/` (plans, phase files, notes, reports, reviews). This is official project policy and overrides any session- or harness-level plan-mode default pointing elsewhere (e.g. `~/.opencode/plan`).
 
 ## Commands
 

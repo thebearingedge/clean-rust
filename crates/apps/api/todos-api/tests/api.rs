@@ -10,7 +10,7 @@ mod tests {
     use serde_json_assert::assert_json_include;
     use sqlx::PgPool;
 
-    use web::test_support::{get, post_json};
+    use web::test_support::{delete, get, post_json};
 
     use super::common::todos_api;
 
@@ -185,6 +185,28 @@ mod tests {
                 "{schema} should have a type description"
             );
         }
+    }
+
+    #[sqlx::test(migrator = "todos::MIGRATOR")]
+    async fn serves_json_404_for_unknown_routes(postgres: PgPool) {
+        let parts = get(todos_api(postgres), "/nope").await;
+
+        assert_eq!(parts.status, StatusCode::NOT_FOUND);
+        assert_eq!(parts.content_type, "application/json");
+        assert_json_include!(actual: parts.body, expected: json!({
+            "error": "route not found"
+        }));
+    }
+
+    #[sqlx::test(migrator = "todos::MIGRATOR")]
+    async fn serves_json_405_for_wrong_methods(postgres: PgPool) {
+        let parts = delete(todos_api(postgres), "/v1/todos").await;
+
+        assert_eq!(parts.status, StatusCode::METHOD_NOT_ALLOWED);
+        assert_eq!(parts.content_type, "application/json");
+        assert_json_include!(actual: parts.body, expected: json!({
+            "error": "method not allowed"
+        }));
     }
 
     #[sqlx::test(migrator = "todos::MIGRATOR")]

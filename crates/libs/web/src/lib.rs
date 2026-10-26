@@ -10,6 +10,10 @@ pub mod api_error;
 /// Encoding and decoding of opaque, base64url pagination cursor tokens.
 pub mod cursor_token;
 
+/// JSON fallback handlers and the [`crate::fallback::with_json_fallbacks`]
+/// router helper for axum's empty 404 and 405 responses.
+pub mod fallback;
+
 /// JSON-Schema-validated extractors: [`crate::extractors::ValidatedJson`],
 /// [`crate::extractors::ValidatedQuery`], and
 /// [`crate::extractors::ValidatedPath`].

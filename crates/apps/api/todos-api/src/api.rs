@@ -15,7 +15,8 @@ use crate::{
 ///
 /// All business routes are mounted via [`ApiRouter::api_route`] so handlers and
 /// error responses are documented; the router carries the extension layer with
-/// the generated [`OpenApi`] document served at `/openapi.json`.
+/// the generated [`OpenApi`] document served at `/openapi.json`, and JSON
+/// fallback handlers replace axum's default empty 404 and 405 responses.
 ///
 /// Aide cannot read doc comments, so the operation descriptions set in the
 /// route-mount closures below are duplicated from the handler doc comments in
@@ -31,60 +32,62 @@ pub fn create_todos_api(app_state: AppState) -> Router {
         ..OpenApi::default()
     };
 
-    ApiRouter::new()
-        .api_route(
-            "/v1/todos/{todo_id}",
-            get_with(controller::get_todo, |op| {
-                web::openapi::standard_get_errors(
-                    op.id("getTodo")
-                        .summary("Get a todo")
-                        .description("Gets a single todo by its ID.")
-                        .response::<200, Json<TodoHttp>>()
-                        .response::<404, Json<ErrorBody>>(),
-                )
-            })
-            .put_with(controller::update_todo, |op| {
-                web::openapi::standard_put_errors(
-                    op.id("updateTodo")
-                        .summary("Update a todo")
-                        .description(
-                            "Fully replaces a todo's mutable fields and returns the updated todo.",
-                        )
-                        .response::<200, Json<TodoHttp>>()
-                        .response::<404, Json<ErrorBody>>(),
-                )
-            })
-            .delete_with(controller::delete_todo, |op| {
-                web::openapi::standard_delete_errors(
-                    op.id("deleteTodo")
-                        .summary("Delete a todo")
-                        .description("Deletes a todo by its ID.")
-                        .response::<204, ()>()
-                        .response::<404, Json<ErrorBody>>(),
-                )
-            }),
-        )
-        .api_route(
-            "/v1/todos",
-            post_with(controller::add_todo, |op| {
-                web::openapi::standard_post_errors(
-                    op.id("addTodo")
-                        .summary("Create a todo")
-                        .description("Adds a new todo and returns it with a `201 Created` status.")
-                        .response::<201, Json<TodoHttp>>(),
-                )
-            })
-            .get_with(controller::list_todos, |op| {
-                web::openapi::standard_get_errors(
-                    op.id("listTodos")
-                        .summary("List todos")
-                        .description("Lists todos by filter with cursor-based pagination.")
-                        .response::<200, Json<TodoPageHttp>>(),
-                )
-            }),
-        )
-        .route("/openapi.json", get(web::openapi::openapi_json))
-        .with_state(app_state)
-        .finish_api(&mut api)
-        .layer(Extension(Arc::new(api)))
+    web::fallback::with_json_fallbacks(
+        ApiRouter::new()
+            .api_route(
+                "/v1/todos/{todo_id}",
+                get_with(controller::get_todo, |op| {
+                    web::openapi::standard_get_errors(
+                        op.id("getTodo")
+                            .summary("Get a todo")
+                            .description("Gets a single todo by its ID.")
+                            .response::<200, Json<TodoHttp>>()
+                            .response::<404, Json<ErrorBody>>(),
+                    )
+                })
+                .put_with(controller::update_todo, |op| {
+                    web::openapi::standard_put_errors(
+                        op.id("updateTodo")
+                            .summary("Update a todo")
+                            .description(
+                                "Fully replaces a todo's mutable fields and returns the updated todo.",
+                            )
+                            .response::<200, Json<TodoHttp>>()
+                            .response::<404, Json<ErrorBody>>(),
+                    )
+                })
+                .delete_with(controller::delete_todo, |op| {
+                    web::openapi::standard_delete_errors(
+                        op.id("deleteTodo")
+                            .summary("Delete a todo")
+                            .description("Deletes a todo by its ID.")
+                            .response::<204, ()>()
+                            .response::<404, Json<ErrorBody>>(),
+                    )
+                }),
+            )
+            .api_route(
+                "/v1/todos",
+                post_with(controller::add_todo, |op| {
+                    web::openapi::standard_post_errors(
+                        op.id("addTodo")
+                            .summary("Create a todo")
+                            .description("Adds a new todo and returns it with a `201 Created` status.")
+                            .response::<201, Json<TodoHttp>>(),
+                    )
+                })
+                .get_with(controller::list_todos, |op| {
+                    web::openapi::standard_get_errors(
+                        op.id("listTodos")
+                            .summary("List todos")
+                            .description("Lists todos by filter with cursor-based pagination.")
+                            .response::<200, Json<TodoPageHttp>>(),
+                    )
+                }),
+            )
+            .route("/openapi.json", get(web::openapi::openapi_json))
+            .with_state(app_state)
+            .finish_api(&mut api)
+            .layer(Extension(Arc::new(api))),
+    )
 }
