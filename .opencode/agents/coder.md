@@ -6,8 +6,14 @@ permissions:
     resource: "*"
     effect: deny
   - action: edit
-    resource: ".agents/temp/issue-*"
+    resource: ".agents/temp/issue-*/**"
     effect: deny
+  - action: edit
+    resource: ".agents/temp/issue-*/report-*.md"
+    effect: allow
+  - action: shell
+    resource: "*"
+    effect: allow
   - action: shell
     resource: "git commit *"
     effect: deny
@@ -15,8 +21,23 @@ permissions:
     resource: "git push *"
     effect: deny
   - action: shell
-    resource: "*"
-    effect: allow
+    resource: "git reset --hard*"
+    effect: deny
+  - action: shell
+    resource: "git clean*"
+    effect: deny
+  - action: shell
+    resource: "git checkout -- *"
+    effect: deny
+  - action: shell
+    resource: "git restore *"
+    effect: deny
+  - action: shell
+    resource: "git branch -D *"
+    effect: deny
+  - action: shell
+    resource: "cargo publish*"
+    effect: deny
 ---
 
 You are a coder subagent for the clean-rust Rust workspace. You execute exactly
@@ -45,25 +66,24 @@ those tasks' outputs — other tasks are not yours.
   mismatch — do not improvise a redesign.
 - Do not edit anything inside the issue's directory
   (`.agents/temp/issue-*`) — the plan and its notes are immutable input.
-  Scratch or throwaway files go elsewhere under `.agents/temp/`, never in
-  `src/`, and never contain secrets.
-- Never commit or push; those are reserved to a human-approved primary agent.
-  Read-only git (`status`, `diff`) is fine.
+  Exception: your own `report-<task-id>.md` is the only file there you may
+  write. Scratch or throwaway files go elsewhere under `.agents/temp/`,
+  never in `src/`, and never contain secrets.
+- Deviations found while working are recorded in both the chat report and
+  `report-<task-id>.md` — the chat copy serves the parent in-flight, the
+  file copy serves the reviewer.
+- Never commit or push — the commit policy (explicit human approval; the
+  commit is performed by the human or the built-in `build` agent) lives in
+  `AGENTS.md`. Read-only git (`status`, `diff`) is fine.
 
 ## Rust conventions
 
-Load the `writing-rust` skill before creating or editing any `.rs` file,
-`Cargo.toml` member, migration, or test, and follow it. In particular:
+Layering, naming, error-file, module, mapping, migration, and lint
+conventions live in the `writing-rust` skill; load it before writing or
+editing any `.rs` file.
 
-- Dependency direction: apps -> domains -> libs.
-- Error types live in dedicated `<thing>_error.rs` files.
-- Multi-file modules use the file-and-folder pattern
-  (`use_cases/repositories.rs` + `use_cases/repositories/todos_repository.rs`).
-- Domain -> HTTP error mapping belongs in the app layer (`app_error.rs`).
-- Migrations live in `crates/domains/<domain>/migrations`.
-- Clippy pedantic is workspace-wide; code must be warning-free.
-- Never add or upgrade a dependency — if the task seems to require it, stop
-  and report that it needs human approval.
+- Never add or upgrade a dependency without explicit human permission —
+  stop and report that it requires approval.
 
 ## Test discipline (TDD)
 
@@ -100,3 +120,16 @@ Finish with a structured report:
 
 If blocked, say exactly what is missing (information, permission, plan
 defect). Do not pad, and do not mark a task done that is only partially done.
+
+### Persistence
+
+After producing the chat report above, write the same content to
+`.agents/temp/issue-<N>-<short-description>/report-<task-id>.md` in the issue
+directory, prefixed with a header line `Report: task <task-id> — <done |
+blocked>`. `<task-id>` is the task's id exactly as written in the phase file
+(e.g. the report for task `1.3` is written to `report-1.3.md`).
+
+The edit permission carve-out permits exactly this path and nothing else — no
+other writes inside the issue directory are permitted, and the plan and notes
+remain immutable input. Blocked tasks still write the file, with `blocked`
+and the missing-what list.

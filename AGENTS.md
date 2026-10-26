@@ -12,12 +12,12 @@ Stack: axum, sqlx (Postgres), sea-query, opentelemetry, tracing, thiserror.
 
 ## Hard rules
 
-- Never commit without explicit human permission.
+- Never commit without explicit human permission. The commit itself is performed by the human or by the built-in `build` agent — the only agent configured with `ask` on commit (see `opencode.jsonc`).
 - Never commit to the `main` branch. Commit only to branches named `issue-N/short-description`, where `N` is a GitHub issue number supplied by the human.
-- No sensitive secrets may ever be added to the repo — not even in `.agents/temp/`, env files, or scratch files.
+- No secrets may ever be added to the repo — not even in `.agents/temp/`, env files, or scratch files.
 - Never add or upgrade a dependency without explicit human permission; looking up the latest version is fine.
-- Always use `.agents/temp/` (gitignored) as a scratch/output area; never write to the system `/tmp`.
-- Never operate outside the project root. Scratch work and worktrees live under `.agents/temp/`.
+- Scratch/output lives in `.agents/temp/` (gitignored) and never in `/tmp`, the repo root, `src/`, `coverage/`, or `target/`. Worktrees stay under `.agents/temp/`.
+- Never operate outside the project root.
 
 ## Commands
 
@@ -33,7 +33,7 @@ Tooling is managed via `direnv` (`.envrc` sets `CARGO_INSTALL_ROOT=tools/cargo` 
 | Coverage | `just cargo-cover` (HTML + lcov in `coverage/`) |
 | Run an app with hot reload | `just cargo-run <app> [args]` — valid `<app>` names are the crate names found in `crates/apps/**/Cargo.toml` (currently `todos-api`, `email-worker`, `ops-cli`) |
 | TDD loop | `just cargo-tdd <crate>` |
-| Migrations | `just migrate <domain> <action>` — valid `<action>` values are `run` and `revert` (`revert --target-version 0` reverts all) |
+| Migrations | `just migrate <domain> <action>` — the action passes through to `sqlx migrate` (`new` to create, `run` to apply, `revert` to undo, `revert --target-version 0` to revert all) |
 | Postgres shell | `just psql <database>` |
 | Compose up/down | `just infrastructure up -d` / `down` |
 
@@ -53,15 +53,23 @@ Tests require the compose services running: `just infrastructure up -d --wait`.
 
 - Agent skills live in `.agents/skills/<name>/SKILL.md`. When a session establishes new durable rules (lints, patterns, conventions), update the relevant skill so they carry forward. Layer and naming conventions, error-handling patterns, and Rust lint rules live in the `writing-rust` skill — not here.
 
-## Workflows
+## Agent Workflow
 
-### Adding an API feature
+How agent sessions run — orchestration only. Code-level workflows live in the skills; commands live in `## Commands`.
 
-Work inside-out: domain first, then infrastructure, then delivery outward.
-These steps make natural phase boundaries when planning.
+**Session loop:**
 
-See the `adding-an-endpoint` skill for the full playbook (domain →
-infrastructure → delivery → tests, migrations, OpenAPI wiring, error
-mapping, per-handler test layout) and the `writing-rust` skill for the
-layering/naming conventions and the fmt/lint/test loop. Dependency
-direction apps → domains → libs holds at every step.
+1. The human names the issue: number + short-description.
+2. The plan agent writes `.agents/temp/issue-N-short-description/plan.md`; explore subagents produce `notes-<topic>.md` alongside it.
+3. The human reviews the plan.
+4. The parent launches a coder per task (inputs: plan path, phase file, task id).
+5. The coder writes `report-<task-id>.md` in the issue dir.
+6. The reviewer reviews and writes `review-<task-id>.md`.
+7. Verdict routing follows the `## Routing` section of `.opencode/agents/reviewer.md`.
+8. When all tasks pass, the human approves and the commit happens.
+
+**Approval gate:** the human approves the plan before any coder runs and approves each commit. Agents propose patches; humans execute or authorize git operations — commits happen only via the built-in `build` agent's `ask` path (see `opencode.jsonc`) or by the human directly.
+
+**Role boundaries:** `AGENTS.md` = policy; `.agents/skills/*` = conventions; `.opencode/agents/*` = orchestration + permissions.
+
+**Artifacts:** everything lives in the issue dir (`.agents/temp/issue-N-short-description/`) — `plan.md`, `phase-<id>-<name>.md`, `notes-<topic>.md`, `report-<task-id>.md`, `review-<task-id>.md`.

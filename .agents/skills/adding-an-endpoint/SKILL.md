@@ -11,14 +11,14 @@ Work **inside-out**: domain → infrastructure → delivery → tests. Each step
 
 ## 1. Domain — the use case and its port
 
-- Define/extend the use case in `crates/domains/<domain>/src/use_cases` and, if the use case needs persistence, its repository port using the file-and-folder pattern (`use_cases/repositories.rs` + `use_cases/repositories/<thing>_repository.rs`). The port speaks in domain models and returns `Result<_, TodoError>`-style domain errors — never sqlx/axum/HTTP types.
+- Define/extend the use case in `crates/domains/<domain>/src/use_cases` and, if the use case needs persistence, its repository port using the file-and-folder pattern (module layout: see `writing-rust`). The port speaks in domain models and returns `Result<_, TodoError>`-style domain errors — never sqlx/axum/HTTP types.
 - Add/extend model types in `crates/domains/<domain>/src/models`, named `*Model` (`TodoModel`, `NewTodoModel`, `TodoUpdateModel`). Put invariants on the model (e.g. `has_valid_task`) — one source of truth for validation; the HTTP layer must not re-encode rules or disagree with them.
 - Extend the domain error (`use_cases/<thing>_error.rs`, thiserror) with any new variant. New error variants need an HTTP mapping later — plan for it.
 - Document every public item as you go (workspace `missing_docs` lint is fatal under CI); business rules and their tests live here.
 
 ## 2. Infrastructure — implement the port
 
-- Implement the port in `crates/domains/<domain>/src/infrastructure` with sqlx + sea-query. Repository errors go in a dedicated `<thing>_error.rs` file (classify and wrap the sqlx error; interpolate `{source}` in `#[error(...)]` messages so diagnostics survive `Display`).
+- Implement the port in `crates/domains/<domain>/src/infrastructure` with sqlx + sea-query. Repository errors go in a dedicated `<thing>_error.rs` file — classify and wrap the sqlx error (see `writing-rust` for `{source}` interpolation).
 - If the schema changes, add a migration under `crates/domains/<domain>/migrations`: `just migrate <domain> new` to create, `just migrate <domain> run` to apply (revert with `just migrate <domain> revert [-- --target-version <n>]`).
 - Dependency direction check: infrastructure may depend on the domain's use_cases (to see the port), never the reverse.
 
@@ -59,4 +59,4 @@ In `crates/apps/<app>/src`, working through four files:
 
 ## 5. Verify the whole path
 
-Run from the repo root (see `writing-rust` for the full loop): `just cargo-lint`, then `just cargo-test <app>` and `just cargo-test <domain>` with compose services up (`just infrastructure up -d --wait`), and keep `just cargo-fmt` clean. Formatting must be spotless and warnings fatal — that is CI.
+Run the `writing-rust` verify loop from the repo root, with compose services up (`just infrastructure up -d --wait`).
