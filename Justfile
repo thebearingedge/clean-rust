@@ -40,7 +40,7 @@ cargo-test crate *args:
   cargo test -p {{crate}} {{args}}
 
 cargo-tdd crate *args:
-  set -a; . tools/envs/{{crate}}.env; set +a; \
+  set -a; [ -f tools/envs/{{crate}}.env ] && . tools/envs/{{crate}}.env; set +a; \
   watchexec -r -w crates -e rs,toml,sql -- cargo test -p {{crate}} -- {{args}}
 
 cargo-test-all:

@@ -29,6 +29,10 @@ pub mod middleware;
 /// `OpenAPI` document handler and standard error-response transforms.
 pub mod openapi;
 
+/// Request-ID middleware: generation, propagation, sanitization, and
+/// task-local access to the current request's ID.
+pub mod request_id;
+
 /// Oneshot HTTP test helpers for exercising routers and handlers
 /// ([`crate::test_support::get`], [`crate::test_support::post_json`],
 /// [`crate::test_support::put_json`], [`crate::test_support::post_body`]) —

@@ -7,7 +7,7 @@
 use axum::{
     Router,
     body::Body,
-    http::{Method, Request, StatusCode, header},
+    http::{HeaderMap, HeaderName, Method, Request, StatusCode, header},
     response::Response,
 };
 use http_body_util::BodyExt;
@@ -16,8 +16,8 @@ use serde_json::Value;
 use tower::ServiceExt;
 
 /// The interesting parts of an HTTP response: the status code, the
-/// `Content-Type` header, and the parsed JSON body (`None` when the body is
-/// not valid JSON).
+/// `Content-Type` header, the response headers, and the parsed JSON body
+/// (`None` when the body is not valid JSON).
 pub struct ResponseParts {
     /// The response status code.
     pub status: StatusCode,
@@ -25,6 +25,18 @@ pub struct ResponseParts {
     pub content_type: String,
     /// The parsed JSON body, or `None` when the body is not valid JSON.
     pub body: Option<Value>,
+    headers: HeaderMap,
+}
+
+impl ResponseParts {
+    /// Returns the value of the response header `name`, or `None` when the
+    /// header is absent, `name` is not a valid header name, or the value is
+    /// not valid UTF-8.
+    #[must_use]
+    pub fn header(&self, name: &str) -> Option<String> {
+        let name = HeaderName::from_bytes(name.as_bytes()).ok()?;
+        self.headers.get(name)?.to_str().ok().map(str::to_owned)
+    }
 }
 
 /// Collects the status, `Content-Type` header, and parsed JSON body from a
@@ -35,6 +47,7 @@ pub struct ResponseParts {
 /// Panics when the response has no `Content-Type` header, the header is not
 /// UTF-8, or the response body cannot be collected.
 pub async fn get_response_parts(res: Response<Body>) -> ResponseParts {
+    let headers = res.headers().clone();
     let status = res.status();
     let content_type = res
         .headers()
@@ -54,6 +67,7 @@ pub async fn get_response_parts(res: Response<Body>) -> ResponseParts {
         status,
         content_type,
         body,
+        headers,
     }
 }
 
@@ -65,6 +79,34 @@ pub async fn get_response_parts(res: Response<Body>) -> ResponseParts {
 pub async fn get(router: Router, uri: &str) -> ResponseParts {
     let request = Request::builder()
         .uri(uri)
+        .body(Body::empty())
+        .expect("GET request should be buildable");
+    get_response_parts(
+        router
+            .oneshot(request)
+            .await
+            .expect("GET request should be handled"),
+    )
+    .await
+}
+
+/// Sends a `GET` request with extra request headers and collects the
+/// interesting parts of the response.
+///
+/// # Panics
+///
+/// Panics when a header name or value is invalid, or the request cannot be
+/// built or the router fails to handle it.
+pub async fn get_with_headers(
+    router: Router,
+    uri: &str,
+    headers: &[(&str, &str)],
+) -> ResponseParts {
+    let mut builder = Request::builder().uri(uri);
+    for (name, value) in headers {
+        builder = builder.header(*name, *value);
+    }
+    let request = builder
         .body(Body::empty())
         .expect("GET request should be buildable");
     get_response_parts(
@@ -167,6 +209,7 @@ pub async fn delete(router: Router, uri: &str) -> ResponseParts {
         .await
         .expect("DELETE request should be handled");
 
+    let headers = response.headers().clone();
     let status = response.status();
     let content_type = response
         .headers()
@@ -189,6 +232,7 @@ pub async fn delete(router: Router, uri: &str) -> ResponseParts {
         status,
         content_type,
         body,
+        headers,
     }
 }
 
@@ -205,7 +249,8 @@ pub fn next_cursor(parts: &ResponseParts) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ResponseParts, delete, get, get_response_parts, next_cursor, post_body, post_json, put_json,
+        ResponseParts, delete, get, get_response_parts, get_with_headers, next_cursor, post_body,
+        post_json, put_json,
     };
     use axum::{
         Json, Router,
@@ -334,6 +379,51 @@ mod tests {
             "content_type": null,
             "body": { "hello": "world" },
         }));
+    }
+
+    #[tokio::test]
+    async fn get_exposes_response_headers() {
+        let router: Router = Router::new().route(
+            "/hello",
+            get_route(|| async { ([("x-custom", "custom-value")], "ok") }),
+        );
+        let parts = get(router, "/hello").await;
+        assert_eq!(parts.header("x-custom"), Some("custom-value".to_owned()));
+        assert_eq!(parts.header("x-absent"), None);
+    }
+
+    #[tokio::test]
+    async fn get_with_headers_sends_the_request_headers() {
+        let router: Router = Router::new().route(
+            "/echo",
+            get_route(|headers: HeaderMap| async move {
+                let request_id = headers
+                    .get("x-request-id")
+                    .and_then(|value| value.to_str().ok())
+                    .unwrap_or_default()
+                    .to_owned();
+                Json(json!({ "request_id": request_id }))
+            }),
+        );
+        let parts = get_with_headers(router, "/echo", &[("x-request-id", "id-1")]).await;
+        let body = parts.body.expect("echo response should be json");
+        assert_json_include!(actual: body, expected: json!({ "request_id": "id-1" }));
+    }
+
+    #[tokio::test]
+    async fn header_maps_an_invalid_name_to_none() {
+        let parts = get(router(), "/ping").await;
+        assert_eq!(parts.header("not a header name"), None);
+    }
+
+    #[tokio::test]
+    async fn delete_exposes_response_headers() {
+        let router: Router = Router::new().route(
+            "/gone",
+            delete_route(|| async { ([("x-request-id", "id-1")], StatusCode::NO_CONTENT) }),
+        );
+        let parts = delete(router, "/gone").await;
+        assert_eq!(parts.header("x-request-id"), Some("id-1".to_owned()));
     }
 
     #[tokio::test]
