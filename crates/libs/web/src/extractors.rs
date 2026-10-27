@@ -62,6 +62,7 @@ where
                 StatusCode::UNPROCESSABLE_ENTITY,
                 &ValidationErrorBody {
                     error: format!("deserialization failed: {e}"),
+                    request_id: None,
                     details: None,
                 },
             )
@@ -88,6 +89,7 @@ fn parameter_error(path: String, message: String) -> ApiError {
         StatusCode::UNPROCESSABLE_ENTITY,
         &ValidationErrorBody {
             error: SCHEMA_VIOLATION.into(),
+            request_id: None,
             details: Some(vec![ValidationDetail { path, message }]),
         },
     )
@@ -241,6 +243,7 @@ fn validate_instance(
         StatusCode::UNPROCESSABLE_ENTITY,
         &ValidationErrorBody {
             error: SCHEMA_VIOLATION.into(),
+            request_id: None,
             details: Some(details),
         },
     ))

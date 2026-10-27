@@ -22,13 +22,13 @@ serde_path_to_error.workspace = true
 serde_urlencoded.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
-tower = { workspace = true, features = ["util"], optional = true }
-tower-http.workspace = true
+tower.workspace = true
+tower-http = { workspace = true, features = ["request-id"] }
 tracing.workspace = true
 uuid.workspace = true
 
 [features]
-test-support = ["dep:tower", "dep:http-body-util"]
+test-support = ["dep:http-body-util"]
 
 [dev-dependencies]
 http-body-util.workspace = true

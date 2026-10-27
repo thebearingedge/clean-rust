@@ -17,12 +17,18 @@ use schemars::JsonSchema;
 use serde::Serialize;
 
 use crate::cursor_token::CursorError;
+use crate::request_id;
 
 /// The standard error body for plain, non-validation error responses.
 #[derive(Serialize, JsonSchema)]
 pub struct ErrorBody {
     /// A generic, client-safe description of the failure.
     pub error: String,
+    /// The request id of the request that produced this error, filled in at
+    /// response time from [`crate::request_id::current`] and omitted when the
+    /// response is produced outside a request-id scope.
+    #[serde(rename = "requestId", skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
 }
 
 /// One invalid input, part of a [`ValidationErrorBody`].
@@ -43,6 +49,11 @@ pub struct ValidationDetail {
 pub struct ValidationErrorBody {
     /// A generic, client-safe description of the validation failure.
     pub error: String,
+    /// The request id of the request that produced this error, filled in at
+    /// response time from [`crate::request_id::current`] and omitted when the
+    /// response is produced outside a request-id scope.
+    #[serde(rename = "requestId", skip_serializing_if = "Option::is_none")]
+    pub request_id: Option<String>,
     /// Details for each invalid input, present only when validation produced
     /// per-field failures.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -50,7 +61,9 @@ pub struct ValidationErrorBody {
 }
 
 /// An error response: an HTTP status code paired with a serialized JSON
-/// body, rendered via [`IntoResponse`].
+/// body, rendered via [`IntoResponse`]. When rendering an object-shaped body
+/// under a request-id scope ([`crate::request_id::current`]), the current
+/// request id is added as the body's `requestId` field.
 #[derive(Debug)]
 pub struct ApiError {
     status: StatusCode,
@@ -77,6 +90,7 @@ impl ApiError {
             status,
             &ErrorBody {
                 error: message.to_owned(),
+                request_id: None,
             },
         )
     }
@@ -84,7 +98,11 @@ impl ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        (self.status, Json(self.body)).into_response()
+        let mut body = self.body;
+        if let (Some(id), Some(object)) = (request_id::current(), body.as_object_mut()) {
+            object.insert("requestId".to_owned(), serde_json::Value::String(id));
+        }
+        (self.status, Json(body)).into_response()
     }
 }
 
@@ -102,5 +120,130 @@ impl From<CursorError> for ApiError {
             CursorError::SortMismatch => StatusCode::UNPROCESSABLE_ENTITY,
         };
         ApiError::message(status, &e.to_string())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::{
+        Router,
+        body::Body,
+        http::{Request, StatusCode},
+        middleware,
+        response::Response,
+        routing::get,
+    };
+    use http_body_util::BodyExt;
+    use serde_json::Value;
+    use serde_json_assert::assert_json_include;
+    use tower::ServiceExt;
+
+    use crate::request_id;
+
+    use super::ApiError;
+
+    fn request(method: &'static str, uri: &str, id: Option<&str>) -> Request<Body> {
+        let mut builder = Request::builder().method(method).uri(uri);
+        if let Some(id) = id {
+            builder = builder.header(&request_id::REQUEST_ID_HEADER, id);
+        }
+        builder.body(Body::empty()).unwrap()
+    }
+
+    async fn body_json(res: Response) -> Value {
+        let bytes = res.into_body().collect().await.unwrap().to_bytes();
+        serde_json::from_slice(&bytes).unwrap()
+    }
+
+    async fn message_error() -> ApiError {
+        ApiError::message(StatusCode::NOT_FOUND, "route not found")
+    }
+
+    fn scoped_router() -> Router {
+        Router::new()
+            .route("/boom", get(message_error))
+            .route("/plain", get(plain_error))
+            .layer(middleware::from_fn(request_id::scope))
+    }
+
+    async fn plain_error() -> ApiError {
+        ApiError::new(StatusCode::OK, &"plain")
+    }
+
+    #[tokio::test]
+    async fn error_body_inside_scope_carries_request_id() {
+        let res = scoped_router()
+            .oneshot(request("GET", "/boom", Some("req-1")))
+            .await
+            .unwrap();
+        let body = body_json(res).await;
+        assert_json_include!(
+            actual: body,
+            expected: serde_json::json!({ "error": "route not found", "requestId": "req-1" })
+        );
+    }
+
+    #[tokio::test]
+    async fn error_body_outside_scope_has_no_request_id() {
+        let router = Router::new().route("/boom", get(message_error));
+        let res = router
+            .oneshot(request("GET", "/boom", Some("req-1")))
+            .await
+            .unwrap();
+        let body = body_json(res).await;
+        assert!(body.get("requestId").is_none());
+        assert_json_include!(
+            actual: body,
+            expected: serde_json::json!({ "error": "route not found" })
+        );
+    }
+
+    #[tokio::test]
+    async fn error_body_without_header_has_no_request_id() {
+        let res = scoped_router()
+            .oneshot(request("GET", "/boom", None))
+            .await
+            .unwrap();
+        let body = body_json(res).await;
+        assert!(body.get("requestId").is_none());
+    }
+
+    #[tokio::test]
+    async fn non_object_body_is_not_mutated() {
+        let res = scoped_router()
+            .oneshot(request("GET", "/plain", Some("req-1")))
+            .await
+            .unwrap();
+        let body = body_json(res).await;
+        assert_eq!(body, Value::String("plain".to_owned()));
+    }
+
+    #[test]
+    fn error_body_schema_documents_optional_request_id() {
+        let schema = serde_json::to_value(schemars::schema_for!(super::ErrorBody)).unwrap();
+        let type_of = schema.pointer("/properties/requestId/type").unwrap();
+        assert!(
+            type_of
+                .as_array()
+                .unwrap()
+                .contains(&Value::String("string".to_owned()))
+        );
+        let required = schema["required"].as_array().unwrap();
+        assert!(!required.contains(&Value::String("requestId".to_owned())));
+    }
+
+    #[test]
+    fn validation_error_body_schema_documents_optional_request_id() {
+        let schema =
+            serde_json::to_value(schemars::schema_for!(super::ValidationErrorBody)).unwrap();
+        let type_of = schema.pointer("/properties/requestId/type").unwrap();
+        assert!(
+            type_of
+                .as_array()
+                .unwrap()
+                .contains(&Value::String("string".to_owned()))
+        );
+        let required = schema["required"].as_array().unwrap();
+        assert!(!required.contains(&Value::String("requestId".to_owned())));
     }
 }

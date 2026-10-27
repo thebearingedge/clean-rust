@@ -7,8 +7,9 @@ use axum::Router;
 use sqlx::PgPool;
 
 use todos_api::{api::create_todos_api, app_state::AppState};
+use web::middleware::with_http_tracing;
 
 /// Builds the todos API router against the test database.
 pub fn todos_api(postgres: PgPool) -> Router {
-    create_todos_api(AppState::new(postgres))
+    with_http_tracing(create_todos_api(AppState::new(postgres)))
 }

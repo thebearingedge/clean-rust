@@ -1,5 +1,5 @@
 //! HTTP integration tests for the todos-api endpoints, exercised through
-//! `create_todos_api` against a migrated test database.
+//! `create_todos_api` against a test database.
 
 mod common;
 
@@ -14,7 +14,7 @@ mod tests {
 
     use super::common::todos_api;
 
-    #[sqlx::test(migrator = "todos::MIGRATOR")]
+    #[sqlx::test]
     async fn serves_openapi_document(postgres: PgPool) {
         let parts = get(todos_api(postgres), "/openapi.json").await;
 
@@ -49,7 +49,7 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrator = "todos::MIGRATOR")]
+    #[sqlx::test]
     async fn documents_the_update_todo_responses(postgres: PgPool) {
         let parts = get(todos_api(postgres), "/openapi.json").await;
 
@@ -106,7 +106,7 @@ mod tests {
         );
     }
 
-    #[sqlx::test(migrator = "todos::MIGRATOR")]
+    #[sqlx::test]
     async fn documents_descriptions_across_the_spec(postgres: PgPool) {
         let parts = get(todos_api(postgres), "/openapi.json").await;
 
@@ -187,7 +187,7 @@ mod tests {
         }
     }
 
-    #[sqlx::test(migrator = "todos::MIGRATOR")]
+    #[sqlx::test]
     async fn serves_json_404_for_unknown_routes(postgres: PgPool) {
         let parts = get(todos_api(postgres), "/nope").await;
 
@@ -198,7 +198,7 @@ mod tests {
         }));
     }
 
-    #[sqlx::test(migrator = "todos::MIGRATOR")]
+    #[sqlx::test]
     async fn serves_json_405_for_wrong_methods(postgres: PgPool) {
         let parts = delete(todos_api(postgres), "/v1/todos").await;
 
@@ -209,7 +209,7 @@ mod tests {
         }));
     }
 
-    #[sqlx::test(migrator = "todos::MIGRATOR")]
+    #[sqlx::test]
     async fn responds_503_when_the_database_is_unavailable(postgres: PgPool) {
         let router = todos_api(postgres.clone());
 
