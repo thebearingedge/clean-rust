@@ -8,8 +8,9 @@
 //! `From<DbError> for StorageError` at the bottom of this file — this module
 //! never constructs `StorageError` variants itself.
 
-use storage::StorageError;
 use thiserror::Error;
+
+use storage::StorageError;
 
 /// A database operation failure: the underlying [`sqlx::Error`] paired with
 /// caller-supplied `context` describing the operation that failed.
@@ -33,6 +34,13 @@ impl DbError {
             context: context.into(),
             source,
         }
+    }
+
+    /// Wraps a driver-protocol violation (a [`sqlx::Error::Protocol`]) with
+    /// `context` describing the operation that failed and `detail`
+    /// describing the violation.
+    pub fn protocol(context: impl Into<String>, detail: impl Into<String>) -> Self {
+        Self::new(context, sqlx::Error::Protocol(detail.into()))
     }
 
     /// True when the failure means the database is unreachable or degraded

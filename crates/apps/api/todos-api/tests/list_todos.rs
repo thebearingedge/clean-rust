@@ -12,10 +12,9 @@ mod tests {
     use sqlx::PgPool;
     use uuid::Uuid;
 
+    use super::common::todos_api;
     use todos_api::controller::TodoPageHttp;
     use web::test_support::{ResponseParts, get, next_cursor};
-
-    use super::common::todos_api;
 
     /// Base for the deterministic fixture ids: a UUID-v7 layout (version nibble 7,
     /// zero timestamp) whose ordering is decided entirely by the low `n` bits.

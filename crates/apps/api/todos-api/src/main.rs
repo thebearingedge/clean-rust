@@ -11,13 +11,12 @@ use tokio::net::TcpListener;
 
 use telemetry::provider::init_tracer_provider;
 use todos::MIGRATOR;
+use todos_api::{api::create_todos_api, app_state::AppState};
 use web::{
     health::{self, HealthCheck},
     middleware::with_http_tracing,
     shutdown_signal,
 };
-
-use todos_api::{api::create_todos_api, app_state::AppState};
 
 const MAX_CONNECTIONS: u32 = 10;
 const MIN_CONNECTIONS: u32 = 2;

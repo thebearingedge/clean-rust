@@ -17,6 +17,7 @@ web = { path = "crates/libs/web" }
 
 aide = { version = "0.15.1", features = ["axum", "axum-json", "axum-query"] }
 anyhow = "1.0.104"
+async-stream = "0.3.6"
 async-trait = "0.1.92"
 axum = { version = "0.8.9", features = ["macros"] }
 base64 = "0.23.1"
@@ -60,6 +61,7 @@ serde_html_form = "0.4.1"
 serde_json = "1.0.154"
 serde_path_to_error = "0.1.20"
 serde_urlencoded = "0.7.1"
+sha2 = "0.11.1"
 sqlx = { version = "0.9.0", default-features = false, features = [
   "chrono",
   "json",

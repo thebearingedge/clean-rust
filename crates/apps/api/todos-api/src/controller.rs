@@ -1,19 +1,28 @@
-use axum::{Json, extract::State, http::StatusCode};
+use axum::{
+    Json,
+    extract::State,
+    http::{HeaderValue, StatusCode},
+    response::{IntoResponse, Response},
+};
 use chrono::{DateTime, Utc};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::{app_error::AppError, app_state::AppState};
+use database::{
+    IDEMPOTENCY_MAX_LENGTH, IDEMPOTENCY_MIN_LENGTH, IDEMPOTENCY_VISIBLE_ASCII_PATTERN,
+    IdempotencyKey,
+};
 use todos::models::todo::{
     NewTodoModel, TodoCursor, TodoFilter, TodoModel, TodoSortKey, TodoUpdateModel,
 };
+use todos::{TodoCreation, TodosInteractor};
 use utils::pagination::{Cursor, Page, Sort, SortOrder};
 use web::{
     cursor_token::CursorError,
-    extractors::{ValidatedJson, ValidatedPath, ValidatedQuery},
+    extractors::{HeaderConfig, OptionalHeader, ValidatedJson, ValidatedPath, ValidatedQuery},
 };
-
-use crate::{app_error::AppError, app_state::AppState};
 
 /// The request body for creating a new todo.
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -60,18 +69,79 @@ impl From<TodoModel> for TodoHttp {
     }
 }
 
+const IDEMPOTENT_REPLAYED_HEADER: &str = "idempotent-replayed";
+
+/// Configuration for the optional `Idempotency-Key` request header of
+/// [`add_todo`], extracted by [`OptionalHeader`]: absent means non-idempotent
+/// creation, present means idempotent creation under that key.
+///
+/// A header that is present but not 1 to 64 visible ASCII characters rejects
+/// the request with a `400 Bad Request` error body reading
+/// [`HeaderConfig::REJECTION`].
+pub struct IdempotencyKeyHeader;
+
+impl HeaderConfig for IdempotencyKeyHeader {
+    const HEADER: &'static str = "idempotency-key";
+
+    const MIN_LENGTH: usize = IDEMPOTENCY_MIN_LENGTH;
+
+    const MAX_LENGTH: usize = IDEMPOTENCY_MAX_LENGTH;
+
+    const PATTERN: &'static str = IDEMPOTENCY_VISIBLE_ASCII_PATTERN;
+
+    const REJECTION: &'static str = "invalid idempotency key";
+
+    const DESCRIPTION: &'static str = "Optional client-supplied idempotency key: visible ASCII, \
+         1 to 64 characters. Retrying with the same key and body replays the original todo; the \
+         same key with a different body is rejected, and a key still held by an unfinished \
+         request is rejected until that request completes. A key that is not valid is rejected \
+         with `400 Bad Request`.";
+}
+
 /// Adds a new todo and returns it with a `201 Created` status.
+///
+/// When the request carries an `Idempotency-Key` header, the creation is
+/// idempotent: the same key and body replay the todo from the original
+/// request, marked with an `Idempotent-Replayed: true` response header; the
+/// same key with a different request body is rejected; and a key still held
+/// by an unfinished request is rejected until that request completes.
+/// Without the header, every request creates a new todo.
 ///
 /// # Errors
 ///
-/// Returns [`AppError`] as a `400 Bad Request` if the task is empty,
-/// or a `500 Internal Server Error` if storage fails.
+/// Returns [`AppError`] as a `400 Bad Request` if the task is empty (an
+/// invalid `Idempotency-Key` header is rejected by the [`OptionalHeader`]
+/// extractor instead), as a `409 Conflict` if the
+/// key is still held by an unfinished request, as a
+/// `422 Unprocessable Entity` if the key was already used for a different
+/// request body, or as a `500 Internal Server Error` /
+/// `503 Service Unavailable` if storage fails.
 pub async fn add_todo(
     State(app_state): State<AppState>,
+    OptionalHeader { value: raw_key, .. }: OptionalHeader<IdempotencyKeyHeader>,
     ValidatedJson(new_todo): ValidatedJson<NewTodoHttp>,
-) -> Result<(StatusCode, Json<TodoHttp>), AppError> {
-    let model = app_state.interactors.todos.add(&new_todo.into()).await?;
-    Ok((StatusCode::CREATED, Json(model.into())))
+) -> Result<Response, AppError> {
+    let key = raw_key.as_deref().and_then(IdempotencyKey::parse);
+    let TodoCreation { todo, replayed } = match key {
+        Some(key) => {
+            app_state
+                .interactors
+                .todos
+                .add_idempotent(&key, &new_todo.into())
+                .await?
+        }
+        None => TodoCreation {
+            todo: app_state.interactors.todos.add(&new_todo.into()).await?,
+            replayed: false,
+        },
+    };
+    let mut response = (StatusCode::CREATED, Json(TodoHttp::from(todo))).into_response();
+    if replayed {
+        response
+            .headers_mut()
+            .insert(IDEMPOTENT_REPLAYED_HEADER, HeaderValue::from_static("true"));
+    }
+    Ok(response)
 }
 
 /// The property that todos are sorted by.
@@ -243,8 +313,9 @@ pub struct ListTodosQuery {
     sort: Option<TodoSortKeyHttp>,
     /// The direction to sort in. Defaults to `asc`.
     order: Option<SortOrderHttp>,
-    /// The maximum number of todos to return, between 1 and 200.
-    #[validate(range(min = 1, max = 200))]
+    /// The maximum number of todos to return, between 1 and
+    /// [`TodosInteractor::MAX_PAGE_SIZE`].
+    #[validate(range(min = 1, max = TodosInteractor::MAX_PAGE_SIZE))]
     limit: Option<u64>,
     /// An opaque cursor token from a previous page's `next` field, for
     /// fetching the next page. Its sort key and order must match `sort` and

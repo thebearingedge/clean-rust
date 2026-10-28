@@ -14,7 +14,7 @@ Stack: axum, sqlx (Postgres), sea-query, opentelemetry, tracing, thiserror.
 
 - Never commit without explicit human permission. The commit itself is performed by the human or by the built-in `build` agent — the only agent configured with `ask` on commit (see `opencode.jsonc`).
 - Never commit to the `main` branch. Commit only to branches named `issue-N/short-description`, where `N` is a GitHub issue number supplied by the human.
-- No secrets may ever be added to the repo — not even in `.agents/temp/`, env files, or scratch files.
+- No secrets may ever be put on the file system — not in the repo, not in `.agents/temp/`, not in env files or scratch files, anywhere. The reverse is explicitly fine: env files (`tools/envs/*.env`, `.envrc`) hold dev credentials, not secrets, and agents may read them freely without asking.
 - Never add or upgrade a dependency without explicit human permission; looking up the latest version is fine.
 - Scratch/output lives in `.agents/temp/` (gitignored) and never in `/tmp`, the repo root, `src/`, `coverage/`, or `target/`. Worktrees stay under `.agents/temp/`.
 - Never operate outside the project root.
@@ -34,7 +34,7 @@ Tooling is managed via `direnv` (`.envrc` sets `CARGO_INSTALL_ROOT=tools/cargo` 
 | Coverage | `just cargo-cover` (HTML + lcov in `coverage/`) |
 | Run an app with hot reload | `just cargo-run <app> [args]` — valid `<app>` names are the crate names found in `crates/apps/**/Cargo.toml` (currently `todos-api`, `email-worker`, `ops-cli`) |
 | TDD loop | `just cargo-tdd <crate>` |
-| Migrations | `just migrate <domain> <action>` — the action passes through to `sqlx migrate` (`new` to create, `run` to apply, `revert` to undo, `revert --target-version 0` to revert all) |
+| Migrations | `just migrate <domain> <action>` — the action passes through to `sqlx migrate` (`add` to create, `run` to apply, `revert` to undo, `revert --target-version 0` to revert all) |
 | Postgres shell | `just psql <database>` |
 | Compose up/down | `just infrastructure up -d` / `down` |
 
@@ -52,7 +52,13 @@ Tests require the compose services running: `just infrastructure up -d --wait`.
 
 ## Conventions
 
-- Agent skills live in `.agents/skills/<name>/SKILL.md`. When a session establishes new durable rules (lints, patterns, conventions), update the relevant skill so they carry forward. Layer and naming conventions, error-handling patterns, and Rust lint rules live in the `writing-rust` skill — not here.
+- **Extraction policy:** any code that could be used by more than one domain
+  must not live in a single domain crate. Extract it aggressively into the
+  most appropriate `crates/libs/*` crate — or a brand-new lib crate when none
+  fits — rather than letting shared-shaped code accumulate inside a domain.
+  Applies when writing new code and to every refactoring pass after feature
+  work lands.
+- Agent skills live in `.agents/skills/<name>/SKILL.md`. When a session establishes new durable rules (lints, patterns, conventions), update the relevant skill so they carry forward. Layer and naming conventions, error-handling patterns, and Rust lint rules live in the `writing-rust` skill; SQL and migration conventions live in the `writing-sql` skill — not here.
 
 ## Agent Workflow
 
@@ -70,6 +76,8 @@ How agent sessions run — orchestration only. Code-level workflows live in the 
 8. When all tasks pass, the human approves and the commit happens.
 
 **Approval gate:** the human approves the plan before any coder runs and approves each commit. Agents propose patches; humans execute or authorize git operations — commits happen only via the built-in `build` agent's `ask` path (see `opencode.jsonc`) or by the human directly.
+
+**Refactoring:** for convention-debt cleanups (misplaced constants, duplicated logic, lib promotion) after feature work lands, the `refactor` agent (see `.opencode/agents/refactor.md`) runs its own loop: explore subagents write `notes-<topic>.md`, it scopes a bound refactor brief, delegates to a coder, and routes the reviewer verdict. It never edits source directly and never commits.
 
 **Role boundaries:** `AGENTS.md` = policy; `.agents/skills/*` = conventions; `.opencode/agents/*` = orchestration + permissions.
 

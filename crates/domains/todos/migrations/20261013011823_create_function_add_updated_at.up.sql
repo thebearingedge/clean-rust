@@ -1,6 +1,6 @@
 create function util._set_updated_at() returns trigger as $$
   begin
-    new.updated_at = now();
+    new.updated_at = clock_timestamp();
     return new;
   end;
 $$ language plpgsql;
@@ -10,7 +10,7 @@ create function util.add_updated_at(table_name regclass) returns void as $$
     execute format('
       alter table %I
         add column
-            updated_at timestamptz(6) not null default now()
+            updated_at timestamptz(6) not null default clock_timestamp()
     ', table_name);
     execute format('
       create trigger set_updated_at_update

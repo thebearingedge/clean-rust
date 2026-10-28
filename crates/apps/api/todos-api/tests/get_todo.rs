@@ -12,9 +12,8 @@ mod tests {
     use sqlx::PgPool;
     use uuid::Uuid;
 
-    use web::test_support::get;
-
     use super::common::todos_api;
+    use web::test_support::get;
 
     #[sqlx::test(migrator = "todos::MIGRATOR", fixtures("get_todo"))]
     async fn reads_a_created_todo(postgres: PgPool) {

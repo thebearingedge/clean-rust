@@ -4,12 +4,11 @@ use aide::axum::{ApiRouter, routing::get_with, routing::post_with};
 use aide::openapi::{Info, OpenApi};
 use axum::{Extension, Json, Router, routing::get};
 
-use web::api_error::ErrorBody;
-
 use crate::{
     app_state::AppState,
     controller::{self, TodoHttp, TodoPageHttp},
 };
+use web::api_error::ErrorBody;
 
 /// Builds the todos HTTP router with aide-generated `OpenAPI` documentation.
 ///
@@ -72,8 +71,19 @@ pub fn create_todos_api(app_state: AppState) -> Router {
                     web::openapi::standard_post_errors(
                         op.id("addTodo")
                             .summary("Create a todo")
-                            .description("Adds a new todo and returns it with a `201 Created` status.")
-                            .response::<201, Json<TodoHttp>>(),
+                            .description(
+                                "Adds a new todo and returns it with a `201 Created` status. \
+                                 The optional `Idempotency-Key` request header (visible ASCII, \
+                                 1 to 64 characters) makes the creation idempotent: the same \
+                                 key and body replay the original todo and the response \
+                                 carries `Idempotent-Replayed: true`; the same key with a \
+                                 different body is rejected with `422 Unprocessable Entity`, \
+                                 and a key still held by an unfinished request with \
+                                 `409 Conflict`. Without the header, every request creates a \
+                                 new todo.",
+                            )
+                            .response::<201, Json<TodoHttp>>()
+                            .response::<409, Json<ErrorBody>>(),
                     )
                 })
                 .get_with(controller::list_todos, |op| {

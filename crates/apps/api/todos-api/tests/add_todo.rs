@@ -13,9 +13,8 @@ mod tests {
     use sqlx::PgPool;
     use uuid::Uuid;
 
-    use web::test_support::{post_body, post_json};
-
     use super::common::todos_api;
+    use web::test_support::{post_body, post_json};
 
     #[sqlx::test(migrator = "todos::MIGRATOR")]
     async fn requires_a_json_body(postgres: PgPool) {

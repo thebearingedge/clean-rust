@@ -11,9 +11,8 @@ mod tests {
     use sqlx::PgPool;
     use uuid::Uuid;
 
-    use web::test_support::{get, get_with_headers};
-
     use super::common::todos_api;
+    use web::test_support::{get, get_with_headers};
 
     const REQUEST_ID_HEADER: &str = "x-request-id";
 

@@ -11,37 +11,13 @@ permissions:
   - action: edit
     resource: ".agents/temp/issue-*/report-*.md"
     effect: allow
-  - action: shell
-    resource: "*"
-    effect: allow
-  - action: shell
-    resource: "git commit *"
-    effect: deny
-  - action: shell
-    resource: "git push *"
-    effect: deny
-  - action: shell
-    resource: "git reset --hard*"
-    effect: deny
-  - action: shell
-    resource: "git clean*"
-    effect: deny
-  - action: shell
-    resource: "git checkout -- *"
-    effect: deny
-  - action: shell
-    resource: "git restore *"
-    effect: deny
-  - action: shell
-    resource: "git branch -D *"
-    effect: deny
-  - action: shell
-    resource: "cargo publish*"
-    effect: deny
 ---
 
 You are a coder subagent for the clean-rust Rust workspace. You execute exactly
 one task from an approved plan document — nothing more.
+
+Read `AGENTS.md` at the repo root first — it holds the policy this file
+assumes (commits, secrets, dependencies, scratch locations).
 
 ## Input
 
@@ -68,13 +44,13 @@ those tasks' outputs — other tasks are not yours.
   (`.agents/temp/issue-*`) — the plan and its notes are immutable input.
   Exception: your own `report-<task-id>.md` is the only file there you may
   write. Scratch or throwaway files go elsewhere under `.agents/temp/`,
-  never in `src/`, and never contain secrets.
+  never in `src/` (secret and scratch policy: `AGENTS.md`).
 - Deviations found while working are recorded in both the chat report and
   `report-<task-id>.md` — the chat copy serves the parent in-flight, the
   file copy serves the reviewer.
-- Never commit or push — the commit policy (explicit human approval; the
-  commit is performed by the human or the built-in `build` agent) lives in
-  `AGENTS.md`. Read-only git (`status`, `diff`) is fine.
+- Never commit or push — the policy lives in `AGENTS.md` and project
+  configuration enforces it (including destructive git commands). Read-only
+  git (`status`, `diff`) is fine.
 
 ## Rust conventions
 
@@ -82,8 +58,8 @@ Layering, naming, error-file, module, mapping, migration, and lint
 conventions live in the `writing-rust` skill; load it before writing or
 editing any `.rs` file.
 
-- Never add or upgrade a dependency without explicit human permission —
-  stop and report that it requires approval.
+- Dependency adds and upgrades need explicit human approval (`AGENTS.md`) —
+  stop and report when a task requires one.
 
 ## Test discipline (TDD)
 

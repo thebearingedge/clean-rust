@@ -58,6 +58,13 @@ impl From<TodoError> for AppError {
                 Self(ApiError::message(StatusCode::BAD_REQUEST, &e.to_string()))
             }
             TodoError::NotFound => Self(ApiError::message(StatusCode::NOT_FOUND, &e.to_string())),
+            TodoError::IdempotencyKeyReused => Self(ApiError::message(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                &e.to_string(),
+            )),
+            TodoError::IdempotencyKeyInFlight => {
+                Self(ApiError::message(StatusCode::CONFLICT, &e.to_string()))
+            }
             TodoError::Storage(e) => Self::from(e),
         }
     }
@@ -70,10 +77,10 @@ impl OperationOutput for AppError {
 #[cfg(test)]
 mod tests {
     use axum::{http::StatusCode, response::IntoResponse};
-    use storage::StorageError;
-    use todos::TodoError;
 
     use super::AppError;
+    use storage::StorageError;
+    use todos::TodoError;
 
     #[test]
     fn not_found_maps_to_404() {
@@ -85,6 +92,18 @@ mod tests {
     fn empty_task_maps_to_400() {
         let response = AppError::from(TodoError::EmptyTask).into_response();
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn idempotency_key_reused_maps_to_422() {
+        let response = AppError::from(TodoError::IdempotencyKeyReused).into_response();
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    #[test]
+    fn idempotency_key_in_flight_maps_to_409() {
+        let response = AppError::from(TodoError::IdempotencyKeyInFlight).into_response();
+        assert_eq!(response.status(), StatusCode::CONFLICT);
     }
 
     #[test]

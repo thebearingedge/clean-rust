@@ -15,8 +15,9 @@ pub mod cursor_token;
 pub mod fallback;
 
 /// JSON-Schema-validated extractors: [`crate::extractors::ValidatedJson`],
-/// [`crate::extractors::ValidatedQuery`], and
-/// [`crate::extractors::ValidatedPath`].
+/// [`crate::extractors::ValidatedQuery`],
+/// [`crate::extractors::ValidatedPath`], and the configurable optional
+/// request-header extractor [`crate::extractors::OptionalHeader`].
 pub mod extractors;
 mod graceful_shutdown;
 

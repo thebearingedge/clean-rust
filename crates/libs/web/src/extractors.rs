@@ -1,6 +1,15 @@
 use std::fmt::Write;
+use std::future::Future;
+use std::marker::PhantomData;
 
-use aide::OperationInput;
+use aide::{
+    OperationInput,
+    generate::GenContext,
+    openapi::{
+        HeaderStyle, Operation, Parameter, ParameterData, ParameterSchemaOrContent, SchemaObject,
+    },
+    operation::add_parameters,
+};
 use axum::{
     Json,
     extract::{
@@ -10,7 +19,7 @@ use axum::{
     http::{StatusCode, request::Parts},
 };
 use jsonschema::Validator;
-use schemars::JsonSchema;
+use schemars::{JsonSchema, json_schema};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use serde_path_to_error::{Path as ErrorPath, Segment};
@@ -259,6 +268,116 @@ fn validate_typed<T: Serialize>(
     validate_instance(validator, &instance, locate)
 }
 
+/// Configuration for the [`OptionalHeader`] extractor: the header's name,
+/// the bounds and pattern its value must satisfy, the `400 Bad Request`
+/// message rejecting an invalid value, and the header's `OpenAPI`
+/// presentation.
+///
+/// The rule the extractor enforces at runtime is: the value is visible ASCII
+/// (`u8::is_ascii_graphic`) and its length in bytes lies within
+/// [`Self::MIN_LENGTH`] and [`Self::MAX_LENGTH`]. [`Self::PATTERN`] must
+/// admit exactly that rule, since it documents the acceptance rule in the
+/// generated `OpenAPI` schema.
+pub trait HeaderConfig {
+    /// The request header's name.
+    const HEADER: &'static str;
+    /// The shortest accepted header value, in bytes.
+    const MIN_LENGTH: usize;
+    /// The longest accepted header value, in bytes.
+    const MAX_LENGTH: usize;
+    /// A regex admitting exactly the accepted values, rendered into the
+    /// `OpenAPI` schema.
+    const PATTERN: &'static str;
+    /// The `400 Bad Request` message rejecting a present-but-invalid value.
+    const REJECTION: &'static str;
+    /// The `OpenAPI` description of the header parameter.
+    const DESCRIPTION: &'static str;
+}
+
+/// An optional request header validated against its [`HeaderConfig`].
+///
+/// Extracts to `None` when the header is absent. A present value that is not
+/// visible ASCII within the configured bounds rejects the request with a
+/// `400 Bad Request` whose body reads [`HeaderConfig::REJECTION`].
+///
+/// The extracted value is the raw header string; apps parse it into their own
+/// key or token types downstream.
+pub struct OptionalHeader<C: HeaderConfig> {
+    /// The header value: `Some` when the header was supplied and passed the
+    /// configured bounds, `None` when the header was absent.
+    pub value: Option<String>,
+    _config: PhantomData<fn() -> C>,
+}
+
+impl<S, C> FromRequestParts<S> for OptionalHeader<C>
+where
+    S: Send + Sync,
+    C: HeaderConfig,
+{
+    type Rejection = ApiError;
+
+    fn from_request_parts(
+        parts: &mut Parts,
+        _state: &S,
+    ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
+        let extracted = match parts.headers.get(C::HEADER) {
+            None => Ok(Self {
+                value: None,
+                _config: PhantomData,
+            }),
+            Some(raw) => raw
+                .to_str()
+                .ok()
+                .filter(|value| {
+                    (C::MIN_LENGTH..=C::MAX_LENGTH).contains(&value.len())
+                        && value.bytes().all(|b| b.is_ascii_graphic())
+                })
+                .map_or_else(
+                    || Err(ApiError::message(StatusCode::BAD_REQUEST, C::REJECTION)),
+                    |value| {
+                        Ok(Self {
+                            value: Some(value.to_owned()),
+                            _config: PhantomData,
+                        })
+                    },
+                ),
+        };
+        std::future::ready(extracted)
+    }
+}
+
+impl<C: HeaderConfig> OperationInput for OptionalHeader<C> {
+    fn operation_input(ctx: &mut GenContext, operation: &mut Operation) {
+        add_parameters(
+            ctx,
+            operation,
+            [Parameter::Header {
+                parameter_data: ParameterData {
+                    name: C::HEADER.to_owned(),
+                    description: Some(C::DESCRIPTION.to_owned()),
+                    required: false,
+                    format: ParameterSchemaOrContent::Schema(SchemaObject {
+                        json_schema: json_schema!({
+                            "type": "string",
+                            "minLength": C::MIN_LENGTH,
+                            "maxLength": C::MAX_LENGTH,
+                            "pattern": C::PATTERN
+                        }),
+                        example: None,
+                        external_docs: None,
+                    }),
+                    deprecated: None,
+                    example: None,
+                    examples: [].into(),
+                    explode: None,
+                    extensions: [].into(),
+                },
+                style: HeaderStyle::Simple,
+            }],
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use axum::{
@@ -278,6 +397,23 @@ mod tests {
     use uuid::Uuid;
 
     use super::{HasSchema, ValidatedPath, ValidatedQuery};
+
+    struct BoundedHeader;
+
+    impl super::HeaderConfig for BoundedHeader {
+        const HEADER: &'static str = "test-header";
+        const MIN_LENGTH: usize = 2;
+        const MAX_LENGTH: usize = 8;
+        const PATTERN: &'static str = "^[!-~]+$";
+        const REJECTION: &'static str = "invalid test header";
+        const DESCRIPTION: &'static str = "the test header";
+    }
+
+    async fn echo_optional_header(
+        super::OptionalHeader { value, .. }: super::OptionalHeader<BoundedHeader>,
+    ) -> impl IntoResponse {
+        Json(value)
+    }
 
     #[derive(Deserialize, Serialize, JsonSchema)]
     struct Params {
@@ -442,6 +578,67 @@ mod tests {
         assert_json_include!(actual: data, expected: serde_json::json!({
             "id": null,
             "limit": 5,
+        }));
+    }
+
+    fn optional_header_router() -> Router {
+        Router::new().route("/echo", get(echo_optional_header))
+    }
+
+    async fn get_with_header(header: Option<(&str, &str)>) -> (StatusCode, Value) {
+        let mut req = Request::builder().uri("/echo");
+        if let Some((name, value)) = header {
+            req = req.header(name, value);
+        }
+        let res = optional_header_router()
+            .oneshot(req.body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        let status = res.status();
+        let data =
+            serde_json::from_slice(&res.into_body().collect().await.unwrap().to_bytes()).unwrap();
+        (status, data)
+    }
+
+    #[tokio::test]
+    async fn an_absent_optional_header_extracts_to_none() {
+        let (status, data) = get_with_header(None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(data, Value::Null);
+    }
+
+    #[tokio::test]
+    async fn a_valid_optional_header_is_extracted() {
+        let (status, data) = get_with_header(Some(("test-header", "abc!~"))).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(data, Value::String("abc!~".to_owned()));
+    }
+
+    #[tokio::test]
+    async fn a_too_short_optional_header_is_a_400_with_the_rejection_message() {
+        let (status, data) = get_with_header(Some(("test-header", "a"))).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_json_include!(actual: data, expected: serde_json::json!({
+            "error": "invalid test header"
+        }));
+    }
+
+    #[tokio::test]
+    async fn a_too_long_optional_header_is_a_400_with_the_rejection_message() {
+        let too_long = "a".repeat(9);
+        let (status, data) = get_with_header(Some(("test-header", &too_long))).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_json_include!(actual: data, expected: serde_json::json!({
+            "error": "invalid test header"
+        }));
+    }
+
+    #[tokio::test]
+    async fn a_non_visible_ascii_optional_header_is_a_400_with_the_rejection_message() {
+        let (status, data) = get_with_header(Some(("test-header", "a b"))).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_json_include!(actual: data, expected: serde_json::json!({
+            "error": "invalid test header"
         }));
     }
 }

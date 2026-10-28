@@ -17,7 +17,7 @@ Dependency direction is strictly apps → domains → libs. Put new code where i
 - **Business rules, ports, use cases** → `crates/domains/<domain>/src/use_cases`
 - **Domain models and invariants** (validation like `has_valid_task`) → `crates/domains/<domain>/src/models`
 - **Database implementations** (sqlx, sea-query) → `crates/domains/<domain>/src/infrastructure`
-- **Generic reusable plumbing** (web middleware, error envelopes, telemetry, pagination) → `crates/libs/*`
+- **Generic reusable plumbing** (web middleware, error envelopes, telemetry, pagination) → `crates/libs/*`. Code with cross-domain shape (ports, models, adapters a second domain could adopt) is extracted to the appropriate lib — or a new lib crate — per the extraction policy in `AGENTS.md`; don't let it strand in one domain.
 
 Leaks to avoid (found in past reviews):
 
@@ -25,10 +25,14 @@ Leaks to avoid (found in past reviews):
 - No domain-specific types in shared libs — e.g. `CursorError::SortMismatch` existing only for todos in `libs/web` was flagged; add a config knob or keep the concern in the app instead.
 - Domain → HTTP status mapping belongs in the app's `app_error.rs`, never in `libs/web` (`From<StorageError>` impls hard-coding 503/409/500 there were flagged).
 - No UUID-version or ID-scheme checks in use cases (`get_version_num() != 7` conflated "bad ID" with "not found" — don't repeat it).
+- Domain-general machinery stranded in a single domain (e.g. the idempotency machinery initially built in `todos`) gets flagged for extraction.
 
 ## Naming and structure — suffixes carry the layer
 
 - **Domain models** (in `crates/domains/<domain>/src/models`) end in `Model`: `TodoModel`, `NewTodoModel`, `TodoUpdateModel`.
+- **Port files** in `crates/domains/<domain>/src/use_cases` are entity-qualified: `todo_unit_of_work.rs` — a domain may contain multiple entities, so port files anchor on their entity (singular), not the domain name.
+- **Adapter implementation files** inside a backend adapter directory (`infrastructure/repositories/postgres/`) are backend-prefixed: `pg_todos_repository.rs`, `pg_unit_of_work.rs` — this disambiguates them from same-named port files and mirrors the `Pg*` type names. Mods match file names; external public paths are unaffected (re-exports keep the type names at the same paths).
+- **Shared-crate consts are concept-prefixed**, not generic: `IDEMPOTENCY_MIN_LENGTH`, not `MIN_LENGTH` — generic names collide at re-export sites (PR 66 review).
 - HTTP-side naming and placement (DTOs mirroring `Model` names as `Http`, `Query`/path structs, colocating structs with their handler) is endpoint-specific — see the `adding-an-endpoint` skill.
 
 ## Comments — what belongs in code
@@ -40,7 +44,7 @@ Leaks to avoid (found in past reviews):
 
 ## Patterns
 
-- **Imports**: four groups separated by blank lines, in this order — std library, third-party crates, internal workspace crates (`todos`, `database`, `telemetry`, `storage`, `utils`, `web`), then the current crate (`crate::` / `super::`).
+- **Imports**: three groups separated by blank lines, in this order — std library, third-party crates, then one contiguous block of internal workspace crates (`todos`, `database`, `telemetry`, `storage`, `utils`, `web`) together with the current crate's paths (`crate::` / `super::`) — project crate imports don't need separation lines (PR 66 review). rustfmt orders `super::`/`crate::` within the merged block, so they sort first — that is expected, not a formatting bug. The same rule applies inside `#[cfg(test)]` modules and to integration-test files under `crates/**/tests`.
 - **Error types**: one dedicated file per crate/layer named `<thing>_error.rs`, using `thiserror`. When wrapping a source error, interpolate `{source}` in the `#[error(...)]` message so diagnostics survive `Display`. If a struct-variant split (like `DbError` → `StorageError` classification) is intentional, document it at the top of the file. (The app-layer HTTP error envelope convention is endpoint-specific — see `adding-an-endpoint`.)
 - **Modules**: multi-file modules use the file-and-folder pattern — `mod.rs`-style parent file (`repositories.rs`) alongside its directory (`repositories/todos_repository.rs`). New sibling modules should match.
 - **Validation**: single source of truth. If a domain model validates (e.g. min length), don't re-encode the rule in the delivery layer (or make them agree); error messages must match the actual rule (`EmptyTask` shouldn't be raised when the real rule is "more than one character").
@@ -50,14 +54,20 @@ Leaks to avoid (found in past reviews):
 
 ## Before you finish
 
-Run from the repo root (tooling needs direnv active — see `AGENTS.md`):
+Run from the repo root (tooling needs direnv active — see `AGENTS.md`, whose
+`## Commands` table owns the recipe set). The loop for a finished task:
 
-1. `just cargo-fmt` — zero fmt drift (CI enforces `cargo fmt --all --check`; fix drift with `just cargo-fmt-fix`).
-2. `just cargo-lint` — clippy pedantic with `-D warnings` (also enforces the workspace `missing_docs` lint), zero warnings. Mid-task, when the workspace is intentionally red (e.g. a trait method awaiting its impl), scope it: `just cargo-lint <crate>`.
-3. `just cargo-check <crate> *args` — plain type-check of one crate for the fast loop (e.g. the designed intermediate states between port and impl tasks).
-4. `just cargo-test <crate>` for every crate you touched. Integration tests need Postgres up: `just infrastructure up -d --wait`.
-5. If you added/changed migrations: `just migrate <domain> run` (revert with `just migrate <domain> revert [-- --target-version <n>]`).
+1. `just cargo-fmt` — zero fmt drift; fix with `just cargo-fmt-fix`.
+2. `just cargo-lint` — zero warnings. Mid-task, when the workspace is
+   intentionally red (e.g. a trait method awaiting its impl), scope it:
+   `just cargo-lint <crate>`; between designed intermediate states, plain
+   `just cargo-check <crate>` is the fast loop.
+3. `just cargo-test <crate>` for every crate you touched; integration tests
+   need Postgres up: `just infrastructure up -d --wait`.
+4. Migrations changed: `just migrate <domain> run` (revert syntax lives in
+   the `AGENTS.md` commands table).
 
-Use the `just` recipes above instead of bare `cargo` commands — they wire in env files and keep one place for flags.
+Prefer the `just` recipes over bare `cargo` commands — they wire in the
+per-crate env files (`tools/envs/<name>.env`) and keep one place for flags.
 
 Commits are governed by the `AGENTS.md` hard rules (explicit human permission; the commit is performed by the human or the built-in `build` agent). `.agents/temp/` is your scratch/output area — put notes, plans, and generated artifacts there (forbidden locations: see `AGENTS.md`).

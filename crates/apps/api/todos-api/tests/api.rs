@@ -10,9 +10,12 @@ mod tests {
     use serde_json_assert::assert_json_include;
     use sqlx::PgPool;
 
-    use web::test_support::{delete, get, post_json};
-
     use super::common::todos_api;
+    use database::{
+        IDEMPOTENCY_MAX_LENGTH, IDEMPOTENCY_MIN_LENGTH, IDEMPOTENCY_VISIBLE_ASCII_PATTERN,
+    };
+    use todos::TodosInteractor;
+    use web::test_support::{delete, get, post_json};
 
     #[sqlx::test]
     async fn serves_openapi_document(postgres: PgPool) {
@@ -185,6 +188,43 @@ mod tests {
                 "{schema} should have a type description"
             );
         }
+    }
+
+    #[sqlx::test]
+    async fn documents_the_idempotency_key_header_schema(postgres: PgPool) {
+        let parts = get(todos_api(postgres), "/openapi.json").await;
+
+        let parameters = &parts.body.expect("should have returned the document")["paths"]["/v1/todos"]
+            ["post"]["parameters"];
+        let parameters = parameters
+            .as_array()
+            .expect("addTodo should document its parameters");
+
+        let header = parameters
+            .iter()
+            .find(|parameter| parameter["in"] == "header" && parameter["name"] == "idempotency-key")
+            .expect("addTodo should document the idempotency-key header");
+
+        let schema = &header["schema"];
+        assert_json_include!(actual: schema.clone(), expected: json!({
+            "type": "string",
+            "minLength": IDEMPOTENCY_MIN_LENGTH,
+            "maxLength": IDEMPOTENCY_MAX_LENGTH,
+            "pattern": IDEMPOTENCY_VISIBLE_ASCII_PATTERN
+        }));
+    }
+
+    #[sqlx::test]
+    async fn documents_the_list_limit_maximum(postgres: PgPool) {
+        let parts = get(todos_api(postgres), "/openapi.json").await;
+
+        let limit = &parts.body.expect("should have returned the document")["components"]["schemas"]
+            ["ListTodosQuery"]["properties"]["limit"];
+
+        assert_json_include!(actual: limit.clone(), expected: json!({
+            "minimum": 1,
+            "maximum": TodosInteractor::MAX_PAGE_SIZE
+        }));
     }
 
     #[sqlx::test]

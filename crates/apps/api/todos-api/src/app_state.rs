@@ -4,10 +4,10 @@ use jsonschema::Validator;
 use schemars::JsonSchema;
 use sqlx::PgPool;
 
-use todos::{TodosInteractor, TodosRepository};
-use web::extractors::HasSchema;
-
 use crate::controller::{ListTodosQuery, NewTodoHttp, TodoPath, TodoUpdateHttp};
+use database::Database;
+use todos::{PgTodosRepository, PgTodosUnitOfWork, TodosInteractor};
+use web::extractors::HasSchema;
 
 /// The axum app state shared by every handler: domain interactors and the
 /// per-request-DTO schema validators, both constructed from a Postgres pool
@@ -23,9 +23,9 @@ pub struct AppState {
 
 impl AppState {
     /// Creates the state from the Postgres pool: the todos repository
-    /// adapter is built on the pool and wrapped in a
-    /// [`TodosInteractor`], and one schema validator is derived per
-    /// request DTO ([`NewTodoHttp`], [`TodoUpdateHttp`], [`TodoPath`],
+    /// adapter and the todos unit-of-work adapter are built on the pool and
+    /// wrapped in a [`TodosInteractor`], and one schema validator is derived
+    /// per request DTO ([`NewTodoHttp`], [`TodoUpdateHttp`], [`TodoPath`],
     /// [`ListTodosQuery`]).
     ///
     /// # Panics
@@ -34,8 +34,13 @@ impl AppState {
     /// validator, which cannot happen for schemars-derived schemas.
     #[must_use]
     pub fn new(postgres: PgPool) -> Self {
+        let database = Database::Pool(postgres);
+
         let interactors = Interactors {
-            todos: TodosInteractor::new(Arc::new(TodosRepository::new(postgres))),
+            todos: TodosInteractor::new(
+                Arc::new(PgTodosRepository::new(database.clone())),
+                Arc::new(PgTodosUnitOfWork::new(database)),
+            ),
         };
 
         let schemas = Schemas {

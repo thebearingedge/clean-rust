@@ -1,22 +1,21 @@
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use futures::StreamExt;
+use futures::TryStreamExt;
 use sea_query::extension::postgres::PgExpr;
 use sea_query::{Expr, ExprTrait, Iden, Order, PostgresQueryBuilder, Query, SimpleExpr};
 use sea_query_sqlx::SqlxBinder;
-use sqlx::{self, AssertSqlSafe, PgPool};
+use sqlx::{self, AssertSqlSafe};
 use tracing::instrument;
 use tracing_futures::Instrument;
 use uuid::Uuid;
-
-use database::DbContext;
-use storage::StorageError;
-use utils::pagination::{Cursor, Sort, SortOrder};
 
 use crate::models::todo::{
     NewTodoModel, TodoCursor, TodoFilter, TodoModel, TodoSortKey, TodoUpdateModel,
 };
 use crate::use_cases::repositories::{TodoStream, TodosRepository as Interface};
+use database::{Database, DbContext};
+use storage::StorageError;
+use utils::pagination::{Cursor, Sort, SortOrder};
 
 #[derive(Clone, Copy, Iden)]
 enum Todos {
@@ -49,20 +48,21 @@ impl From<TodoRow> for TodoModel {
 #[derive(Clone, Debug)]
 /// Postgres implementation of the
 /// [`TodosRepository`](crate::use_cases::repositories::TodosRepository) port.
-pub struct TodosRepository {
-    service: PgPool,
+pub struct PgTodosRepository {
+    database: Database,
 }
 
-impl TodosRepository {
-    /// Creates a repository backed by the given connection pool.
+impl PgTodosRepository {
+    /// Creates a repository backed by the given [`Database`] connection
+    /// source.
     #[must_use]
-    pub fn new(service: PgPool) -> Self {
-        Self { service }
+    pub fn new(database: Database) -> Self {
+        Self { database }
     }
 }
 
 #[async_trait]
-impl Interface for TodosRepository {
+impl Interface for PgTodosRepository {
     #[instrument(skip_all)]
     async fn add(&self, todo: &NewTodoModel) -> Result<TodoModel, StorageError> {
         let (text, values) = Query::insert()
@@ -77,8 +77,10 @@ impl Interface for TodosRepository {
             ]))
             .build_sqlx(PostgresQueryBuilder);
 
+        let mut conn = self.database.connect().await.map_err(StorageError::from)?;
+
         sqlx::query_as_with::<_, TodoRow, _>(AssertSqlSafe(text), values)
-            .fetch_one(&self.service)
+            .fetch_one(&mut *conn)
             .await
             .map(TodoModel::from)
             .db_context("inserting todo")
@@ -111,8 +113,10 @@ impl Interface for TodosRepository {
             ]))
             .build_sqlx(PostgresQueryBuilder);
 
+        let mut conn = self.database.connect().await.map_err(StorageError::from)?;
+
         sqlx::query_as_with::<_, TodoRow, _>(AssertSqlSafe(text), values)
-            .fetch_optional(&self.service)
+            .fetch_optional(&mut *conn)
             .await
             .map(|row| row.map(TodoModel::from))
             .db_context("updating todo")
@@ -127,8 +131,10 @@ impl Interface for TodosRepository {
             .returning(Query::returning().columns([Todos::TodoId]))
             .build_sqlx(PostgresQueryBuilder);
 
+        let mut conn = self.database.connect().await.map_err(StorageError::from)?;
+
         sqlx::query_scalar_with::<_, Uuid, _>(AssertSqlSafe(text), values)
-            .fetch_optional(&self.service)
+            .fetch_optional(&mut *conn)
             .await
             .map(|deleted| deleted.is_some())
             .db_context("deleting todo")
@@ -176,15 +182,23 @@ impl Interface for TodosRepository {
             })
             .build_sqlx(PostgresQueryBuilder);
 
-        sqlx::query_as_with::<_, TodoRow, _>(AssertSqlSafe(text), values)
-            .fetch(&self.service)
-            .map(|row| {
-                row.map(TodoModel::from)
-                    .db_context("streaming todo")
-                    .map_err(StorageError::from)
-            })
-            .instrument(tracing::Span::current())
-            .boxed()
+        let database = self.database.clone();
+
+        let stream = async_stream::try_stream! {
+            let mut conn = database.connect().await.map_err(StorageError::from)?;
+            let mut rows = sqlx::query_as_with::<_, TodoRow, _>(AssertSqlSafe(text), values)
+                .fetch(&mut *conn);
+            while let Some(row) = rows
+                .try_next()
+                .await
+                .db_context("streaming todo")
+                .map_err(StorageError::from)?
+            {
+                yield TodoModel::from(row);
+            }
+        };
+
+        Box::pin(stream.instrument(tracing::Span::current()))
     }
 }
 
