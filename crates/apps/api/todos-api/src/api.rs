@@ -4,12 +4,11 @@ use aide::axum::{ApiRouter, routing::get_with, routing::post_with};
 use aide::openapi::{Info, OpenApi};
 use axum::{Extension, Json, Router, routing::get};
 
-use web::api_error::ErrorBody;
-
 use crate::{
     app_state::AppState,
     controller::{self, TodoHttp, TodoPageHttp},
 };
+use web::api_error::ErrorBody;
 
 /// Builds the todos HTTP router with aide-generated `OpenAPI` documentation.
 ///

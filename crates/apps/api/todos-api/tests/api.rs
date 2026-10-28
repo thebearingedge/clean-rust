@@ -6,15 +6,16 @@ mod common;
 #[cfg(test)]
 mod tests {
     use axum::http::StatusCode;
-    use database::{MAX_LENGTH, MIN_LENGTH, VISIBLE_ASCII_PATTERN};
     use serde_json::json;
     use serde_json_assert::assert_json_include;
     use sqlx::PgPool;
-    use todos::TodosInteractor;
-
-    use web::test_support::{delete, get, post_json};
 
     use super::common::todos_api;
+    use database::{
+        IDEMPOTENCY_MAX_LENGTH, IDEMPOTENCY_MIN_LENGTH, IDEMPOTENCY_VISIBLE_ASCII_PATTERN,
+    };
+    use todos::TodosInteractor;
+    use web::test_support::{delete, get, post_json};
 
     #[sqlx::test]
     async fn serves_openapi_document(postgres: PgPool) {
@@ -207,9 +208,9 @@ mod tests {
         let schema = &header["schema"];
         assert_json_include!(actual: schema.clone(), expected: json!({
             "type": "string",
-            "minLength": MIN_LENGTH,
-            "maxLength": MAX_LENGTH,
-            "pattern": VISIBLE_ASCII_PATTERN
+            "minLength": IDEMPOTENCY_MIN_LENGTH,
+            "maxLength": IDEMPOTENCY_MAX_LENGTH,
+            "pattern": IDEMPOTENCY_VISIBLE_ASCII_PATTERN
         }));
     }
 

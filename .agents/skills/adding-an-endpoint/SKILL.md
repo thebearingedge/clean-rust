@@ -19,7 +19,7 @@ Work **inside-out**: domain → infrastructure → delivery → tests. Each step
 ## 2. Infrastructure — implement the port
 
 - Implement the port in `crates/domains/<domain>/src/infrastructure` with sqlx + sea-query. Repository errors go in a dedicated `<thing>_error.rs` file — classify and wrap the sqlx error (see `writing-rust` for `{source}` interpolation).
-- If the schema changes, add a migration under `crates/domains/<domain>/migrations`: `just migrate <domain> add` to create, `just migrate <domain> run` to apply (`just migrate <domain> revert` to undo, `revert --target-version 0` to revert all — syntax lives in the `AGENTS.md` commands table).
+- If the schema changes, add a migration under `crates/domains/<domain>/migrations`: `just migrate <domain> add` to create, `just migrate <domain> run` to apply (`just migrate <domain> revert` to undo, `revert --target-version 0` to revert all — syntax lives in the `AGENTS.md` commands table; schema patterns and SQL formatting live in the `writing-sql` skill).
 - Dependency direction check: infrastructure may depend on the domain's use_cases (to see the port), never the reverse.
 
 ## 3. Delivery — the app layer

@@ -9,7 +9,11 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use database::{IdempotencyKey, MAX_LENGTH, MIN_LENGTH, VISIBLE_ASCII_PATTERN};
+use crate::{app_error::AppError, app_state::AppState};
+use database::{
+    IDEMPOTENCY_MAX_LENGTH, IDEMPOTENCY_MIN_LENGTH, IDEMPOTENCY_VISIBLE_ASCII_PATTERN,
+    IdempotencyKey,
+};
 use todos::models::todo::{
     NewTodoModel, TodoCursor, TodoFilter, TodoModel, TodoSortKey, TodoUpdateModel,
 };
@@ -19,8 +23,6 @@ use web::{
     cursor_token::CursorError,
     extractors::{HeaderConfig, OptionalHeader, ValidatedJson, ValidatedPath, ValidatedQuery},
 };
-
-use crate::{app_error::AppError, app_state::AppState};
 
 /// The request body for creating a new todo.
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -81,11 +83,11 @@ pub struct IdempotencyKeyHeader;
 impl HeaderConfig for IdempotencyKeyHeader {
     const HEADER: &'static str = "idempotency-key";
 
-    const MIN_LENGTH: usize = MIN_LENGTH;
+    const MIN_LENGTH: usize = IDEMPOTENCY_MIN_LENGTH;
 
-    const MAX_LENGTH: usize = MAX_LENGTH;
+    const MAX_LENGTH: usize = IDEMPOTENCY_MAX_LENGTH;
 
-    const PATTERN: &'static str = VISIBLE_ASCII_PATTERN;
+    const PATTERN: &'static str = IDEMPOTENCY_VISIBLE_ASCII_PATTERN;
 
     const REJECTION: &'static str = "invalid idempotency key";
 

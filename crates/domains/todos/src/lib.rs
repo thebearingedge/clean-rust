@@ -11,6 +11,6 @@ pub use infrastructure::repositories::postgres::{MIGRATOR, PgTodosRepository, Pg
 pub use use_cases::{
     TodoError,
     repositories::TodosRepository,
+    todo_unit_of_work::{TodosUnit, TodosUnitOfWork},
     todos_interactor::{TodoCreation, TodosInteractor},
-    unit_of_work::{TodosUnit, TodosUnitOfWork},
 };

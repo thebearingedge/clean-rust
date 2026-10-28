@@ -3,17 +3,15 @@
 
 use async_trait::async_trait;
 
-use storage::StorageError;
-
-use database::IdempotencyRepository;
-
 use crate::use_cases::repositories::TodosRepository;
+use database::IdempotencyRepository;
+use storage::StorageError;
 
 /// Transaction-scoping port that begins a unit of work whose repositories
 /// share one underlying transaction.
 ///
 /// Dropping the returned unit without calling
-/// [`TodosUnit::commit`](crate::use_cases::unit_of_work::TodosUnit::commit)
+/// [`TodosUnit::commit`](crate::use_cases::todo_unit_of_work::TodosUnit::commit)
 /// rolls everything back.
 #[async_trait]
 pub trait TodosUnitOfWork: std::fmt::Debug + Send + Sync {
@@ -33,7 +31,7 @@ pub trait TodosUnitOfWork: std::fmt::Debug + Send + Sync {
 /// a fresh handle over the same underlying transaction, so writes through
 /// one handle are visible to reads through any other handle on the same
 /// unit. Dropping the unit without calling
-/// [`TodosUnit::commit`](crate::use_cases::unit_of_work::TodosUnit::commit)
+/// [`TodosUnit::commit`](crate::use_cases::todo_unit_of_work::TodosUnit::commit)
 /// rolls everything back.
 #[async_trait]
 pub trait TodosUnit: Send {

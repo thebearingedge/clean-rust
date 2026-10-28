@@ -58,7 +58,7 @@ Tests require the compose services running: `just infrastructure up -d --wait`.
   fits — rather than letting shared-shaped code accumulate inside a domain.
   Applies when writing new code and to every refactoring pass after feature
   work lands.
-- Agent skills live in `.agents/skills/<name>/SKILL.md`. When a session establishes new durable rules (lints, patterns, conventions), update the relevant skill so they carry forward. Layer and naming conventions, error-handling patterns, and Rust lint rules live in the `writing-rust` skill — not here.
+- Agent skills live in `.agents/skills/<name>/SKILL.md`. When a session establishes new durable rules (lints, patterns, conventions), update the relevant skill so they carry forward. Layer and naming conventions, error-handling patterns, and Rust lint rules live in the `writing-rust` skill; SQL and migration conventions live in the `writing-sql` skill — not here.
 
 ## Agent Workflow
 

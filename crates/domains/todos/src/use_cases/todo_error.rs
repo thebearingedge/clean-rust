@@ -1,7 +1,8 @@
 //! Errors raised by the todos use cases.
 
-use storage::StorageError;
 use thiserror::Error;
+
+use storage::StorageError;
 
 /// Errors surfaced by [`TodosInteractor`](crate::use_cases::todos_interactor::TodosInteractor).
 #[derive(Debug, Error)]

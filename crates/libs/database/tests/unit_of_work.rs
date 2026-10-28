@@ -2,8 +2,9 @@
 
 use std::time::Duration;
 
-use database::Database;
 use sqlx::PgPool;
+
+use database::Database;
 
 async fn create_table(pool: &PgPool) {
     sqlx::query("create table unit_of_work_test (id int)")

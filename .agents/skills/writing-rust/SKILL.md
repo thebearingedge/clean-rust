@@ -30,6 +30,9 @@ Leaks to avoid (found in past reviews):
 ## Naming and structure — suffixes carry the layer
 
 - **Domain models** (in `crates/domains/<domain>/src/models`) end in `Model`: `TodoModel`, `NewTodoModel`, `TodoUpdateModel`.
+- **Port files** in `crates/domains/<domain>/src/use_cases` are entity-qualified: `todo_unit_of_work.rs` — a domain may contain multiple entities, so port files anchor on their entity (singular), not the domain name.
+- **Adapter implementation files** inside a backend adapter directory (`infrastructure/repositories/postgres/`) are backend-prefixed: `pg_todos_repository.rs`, `pg_unit_of_work.rs` — this disambiguates them from same-named port files and mirrors the `Pg*` type names. Mods match file names; external public paths are unaffected (re-exports keep the type names at the same paths).
+- **Shared-crate consts are concept-prefixed**, not generic: `IDEMPOTENCY_MIN_LENGTH`, not `MIN_LENGTH` — generic names collide at re-export sites (PR 66 review).
 - HTTP-side naming and placement (DTOs mirroring `Model` names as `Http`, `Query`/path structs, colocating structs with their handler) is endpoint-specific — see the `adding-an-endpoint` skill.
 
 ## Comments — what belongs in code
@@ -41,7 +44,7 @@ Leaks to avoid (found in past reviews):
 
 ## Patterns
 
-- **Imports**: four groups separated by blank lines, in this order — std library, third-party crates, internal workspace crates (`todos`, `database`, `telemetry`, `storage`, `utils`, `web`), then the current crate (`crate::` / `super::`).
+- **Imports**: three groups separated by blank lines, in this order — std library, third-party crates, then one contiguous block of internal workspace crates (`todos`, `database`, `telemetry`, `storage`, `utils`, `web`) together with the current crate's paths (`crate::` / `super::`) — project crate imports don't need separation lines (PR 66 review). rustfmt orders `super::`/`crate::` within the merged block, so they sort first — that is expected, not a formatting bug. The same rule applies inside `#[cfg(test)]` modules and to integration-test files under `crates/**/tests`.
 - **Error types**: one dedicated file per crate/layer named `<thing>_error.rs`, using `thiserror`. When wrapping a source error, interpolate `{source}` in the `#[error(...)]` message so diagnostics survive `Display`. If a struct-variant split (like `DbError` → `StorageError` classification) is intentional, document it at the top of the file. (The app-layer HTTP error envelope convention is endpoint-specific — see `adding-an-endpoint`.)
 - **Modules**: multi-file modules use the file-and-folder pattern — `mod.rs`-style parent file (`repositories.rs`) alongside its directory (`repositories/todos_repository.rs`). New sibling modules should match.
 - **Validation**: single source of truth. If a domain model validates (e.g. min length), don't re-encode the rule in the delivery layer (or make them agree); error messages must match the actual rule (`EmptyTask` shouldn't be raised when the real rule is "more than one character").

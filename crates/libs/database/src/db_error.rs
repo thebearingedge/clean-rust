@@ -8,8 +8,9 @@
 //! `From<DbError> for StorageError` at the bottom of this file — this module
 //! never constructs `StorageError` variants itself.
 
-use storage::StorageError;
 use thiserror::Error;
+
+use storage::StorageError;
 
 /// A database operation failure: the underlying [`sqlx::Error`] paired with
 /// caller-supplied `context` describing the operation that failed.

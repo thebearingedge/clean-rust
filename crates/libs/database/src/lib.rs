@@ -20,7 +20,7 @@ pub mod unit_of_work;
 
 pub use db_error::{DbContext, DbError};
 pub use idempotency::{
-    Claim, IdempotencyKey, IdempotencyRepository, MAX_LENGTH, MIN_LENGTH, PgIdempotencyRepository,
-    VISIBLE_ASCII_PATTERN,
+    Claim, IDEMPOTENCY_MAX_LENGTH, IDEMPOTENCY_MIN_LENGTH, IDEMPOTENCY_VISIBLE_ASCII_PATTERN,
+    IdempotencyKey, IdempotencyRepository, PgIdempotencyRepository,
 };
 pub use unit_of_work::{Conn, Database, UnitOfWork};

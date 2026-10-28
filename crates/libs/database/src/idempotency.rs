@@ -8,20 +8,19 @@ use sqlx::{self, AssertSqlSafe};
 use tracing::instrument;
 use uuid::Uuid;
 
+use crate::{Database, DbContext, DbError};
 use storage::StorageError;
 
-use crate::{Database, DbContext, DbError};
-
 /// The shortest valid key: one visible ASCII character.
-pub const MIN_LENGTH: usize = 1;
+pub const IDEMPOTENCY_MIN_LENGTH: usize = 1;
 
 /// The longest valid key: 64 visible ASCII characters.
-pub const MAX_LENGTH: usize = 64;
+pub const IDEMPOTENCY_MAX_LENGTH: usize = 64;
 
 /// A regex admitting exactly the keys [`IdempotencyKey::parse`] accepts: one
 /// or more visible ASCII characters (the `!`–`~` range that
 /// `u8::is_ascii_graphic` covers).
-pub const VISIBLE_ASCII_PATTERN: &str = "^[!-~]+$";
+pub const IDEMPOTENCY_VISIBLE_ASCII_PATTERN: &str = "^[!-~]+$";
 
 /// A client-supplied idempotency key: visible ASCII, 1 to 64 characters.
 ///
@@ -32,12 +31,13 @@ pub struct IdempotencyKey(String);
 
 impl IdempotencyKey {
     /// Parses a raw key: visible ASCII, 1 to 64 characters. Returns
-    /// [`Option::None`] when the input is shorter than [`MIN_LENGTH`],
-    /// longer than [`MAX_LENGTH`], or contains characters outside the
-    /// [`VISIBLE_ASCII_PATTERN`] range.
+    /// [`Option::None`] when the input is shorter than
+    /// [`IDEMPOTENCY_MIN_LENGTH`], longer than [`IDEMPOTENCY_MAX_LENGTH`], or
+    /// contains characters outside the [`IDEMPOTENCY_VISIBLE_ASCII_PATTERN`]
+    /// range.
     #[must_use]
     pub fn parse(raw: &str) -> Option<Self> {
-        let valid = (MIN_LENGTH..=MAX_LENGTH).contains(&raw.len())
+        let valid = (IDEMPOTENCY_MIN_LENGTH..=IDEMPOTENCY_MAX_LENGTH).contains(&raw.len())
             && raw.bytes().all(|b| b.is_ascii_graphic());
         valid.then(|| Self(raw.to_owned()))
     }

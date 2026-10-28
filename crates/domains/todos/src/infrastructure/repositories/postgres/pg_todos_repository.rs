@@ -9,14 +9,13 @@ use tracing::instrument;
 use tracing_futures::Instrument;
 use uuid::Uuid;
 
-use database::{Database, DbContext};
-use storage::StorageError;
-use utils::pagination::{Cursor, Sort, SortOrder};
-
 use crate::models::todo::{
     NewTodoModel, TodoCursor, TodoFilter, TodoModel, TodoSortKey, TodoUpdateModel,
 };
 use crate::use_cases::repositories::{TodoStream, TodosRepository as Interface};
+use database::{Database, DbContext};
+use storage::StorageError;
+use utils::pagination::{Cursor, Sort, SortOrder};
 
 #[derive(Clone, Copy, Iden)]
 enum Todos {

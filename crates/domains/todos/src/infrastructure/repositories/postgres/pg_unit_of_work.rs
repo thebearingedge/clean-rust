@@ -1,14 +1,13 @@
 use async_trait::async_trait;
 
+use crate::infrastructure::repositories::postgres::PgTodosRepository;
+use crate::use_cases::repositories::TodosRepository;
+use crate::use_cases::todo_unit_of_work::{TodosUnit, TodosUnitOfWork};
 use database::{Database, IdempotencyRepository, PgIdempotencyRepository, UnitOfWork};
 use storage::StorageError;
 
-use crate::infrastructure::repositories::postgres::PgTodosRepository;
-use crate::use_cases::repositories::TodosRepository;
-use crate::use_cases::unit_of_work::{TodosUnit, TodosUnitOfWork};
-
 /// Postgres implementation of the
-/// [`TodosUnitOfWork`](crate::use_cases::unit_of_work::TodosUnitOfWork) port.
+/// [`TodosUnitOfWork`](crate::use_cases::todo_unit_of_work::TodosUnitOfWork) port.
 #[derive(Clone, Debug)]
 pub struct PgTodosUnitOfWork {
     database: Database,

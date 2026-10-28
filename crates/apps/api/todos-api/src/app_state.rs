@@ -4,11 +4,10 @@ use jsonschema::Validator;
 use schemars::JsonSchema;
 use sqlx::PgPool;
 
+use crate::controller::{ListTodosQuery, NewTodoHttp, TodoPath, TodoUpdateHttp};
 use database::Database;
 use todos::{PgTodosRepository, PgTodosUnitOfWork, TodosInteractor};
 use web::extractors::HasSchema;
-
-use crate::controller::{ListTodosQuery, NewTodoHttp, TodoPath, TodoUpdateHttp};
 
 /// The axum app state shared by every handler: domain interactors and the
 /// per-request-DTO schema validators, both constructed from a Postgres pool

@@ -12,9 +12,8 @@ mod tests {
     use sqlx::PgPool;
     use uuid::Uuid;
 
-    use web::test_support::{delete, get};
-
     use super::common::todos_api;
+    use web::test_support::{delete, get};
 
     #[sqlx::test(migrator = "todos::MIGRATOR", fixtures("delete_todo"))]
     async fn responds_with_204_and_removes_the_todo(postgres: PgPool) {

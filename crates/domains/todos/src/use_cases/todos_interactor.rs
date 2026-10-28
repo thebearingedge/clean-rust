@@ -1,7 +1,7 @@
 //! Primary entry point for the todos domain, driving a
 //! [`TodosRepository`](crate::use_cases::repositories::TodosRepository)
 //! implementation behind the [`TodosInteractor`], with idempotent creation
-//! scoped by a [`TodosUnitOfWork`](crate::use_cases::unit_of_work::TodosUnitOfWork)
+//! scoped by a [`TodosUnitOfWork`](crate::use_cases::todo_unit_of_work::TodosUnitOfWork)
 //! transaction.
 
 use std::sync::Arc;
@@ -10,15 +10,14 @@ use futures::TryStreamExt;
 use tracing::instrument;
 use uuid::Uuid;
 
-use database::{Claim, IdempotencyKey};
-use utils::pagination::{Cursor, Page, Sort};
-
 use crate::{
     models::todo::{NewTodoModel, TodoCursor, TodoFilter, TodoModel, TodoSortKey, TodoUpdateModel},
     use_cases::repositories::TodosRepository,
     use_cases::todo_error::TodoError,
-    use_cases::unit_of_work::TodosUnitOfWork,
+    use_cases::todo_unit_of_work::TodosUnitOfWork,
 };
+use database::{Claim, IdempotencyKey};
+use utils::pagination::{Cursor, Page, Sort};
 
 const DEFAULT_PAGE_SIZE: u64 = 50;
 
@@ -83,7 +82,7 @@ impl TodosInteractor {
     /// A failed creation leaves no key row behind: the idempotency claim,
     /// the todo insert, and the key completion all run in one unit of work,
     /// and any early failure drops the unit without
-    /// [`commit`](crate::use_cases::unit_of_work::TodosUnit::commit), which
+    /// [`commit`](crate::use_cases::todo_unit_of_work::TodosUnit::commit), which
     /// rolls everything back — so the key can be retried afterwards.
     ///
     /// # Errors

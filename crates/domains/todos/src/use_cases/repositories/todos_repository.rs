@@ -7,12 +7,11 @@ use async_trait::async_trait;
 use futures::{Stream, TryStreamExt};
 use uuid::Uuid;
 
-use storage::StorageError;
-use utils::pagination::{Cursor, Sort, SortOrder};
-
 use crate::models::todo::{
     NewTodoModel, TodoCursor, TodoFilter, TodoModel, TodoSortKey, TodoUpdateModel,
 };
+use storage::StorageError;
+use utils::pagination::{Cursor, Sort, SortOrder};
 
 /// Paged result stream from [`TodosRepository::stream_by_filter`], yielding
 /// matching todos in the requested sort order or a [`StorageError`] when

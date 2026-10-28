@@ -77,10 +77,10 @@ impl OperationOutput for AppError {
 #[cfg(test)]
 mod tests {
     use axum::{http::StatusCode, response::IntoResponse};
-    use storage::StorageError;
-    use todos::TodoError;
 
     use super::AppError;
+    use storage::StorageError;
+    use todos::TodoError;
 
     #[test]
     fn not_found_maps_to_404() {

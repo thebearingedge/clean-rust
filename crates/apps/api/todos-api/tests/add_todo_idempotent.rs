@@ -12,13 +12,12 @@ mod tests {
     use sqlx::PgPool;
     use uuid::Uuid;
 
+    use super::common::todos_api;
     use database::{
         Claim, Database, IdempotencyKey, IdempotencyRepository, PgIdempotencyRepository,
     };
     use todos::models::todo::NewTodoModel;
     use web::test_support::{post_json, post_json_with_headers};
-
-    use super::common::todos_api;
 
     #[must_use]
     fn key(raw: &str) -> IdempotencyKey {

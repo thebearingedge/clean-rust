@@ -138,9 +138,8 @@ mod tests {
     use serde_json_assert::assert_json_include;
     use tower::ServiceExt;
 
-    use crate::request_id;
-
     use super::ApiError;
+    use crate::request_id;
 
     fn request(method: &'static str, uri: &str, id: Option<&str>) -> Request<Body> {
         let mut builder = Request::builder().method(method).uri(uri);

@@ -14,9 +14,8 @@ mod tests {
     use sqlx::PgPool;
     use uuid::Uuid;
 
-    use web::test_support::put_json;
-
     use super::common::todos_api;
+    use web::test_support::put_json;
 
     #[sqlx::test(migrator = "todos::MIGRATOR", fixtures("update_todo"))]
     async fn responds_with_the_updated_todo(postgres: PgPool) {
