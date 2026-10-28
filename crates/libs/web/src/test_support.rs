@@ -131,6 +131,24 @@ pub async fn post_json(router: Router, uri: &str, body: &impl Serialize) -> Resp
     post_body(router, uri, Some("application/json"), bytes.into()).await
 }
 
+/// Sends a `POST` request with extra request headers, a JSON-encoded `body`,
+/// and the `application/json` content type, then collects the interesting
+/// parts of the response.
+///
+/// # Panics
+///
+/// Panics when `body` cannot be serialized to JSON, a header name or value is
+/// invalid, or the request cannot be built or the router fails to handle it.
+pub async fn post_json_with_headers(
+    router: Router,
+    uri: &str,
+    headers: &[(&str, &str)],
+    body: &impl Serialize,
+) -> ResponseParts {
+    let bytes = serde_json::to_vec(body).expect("JSON request body should serialize");
+    post_body_with_headers(router, uri, headers, Some("application/json"), bytes.into()).await
+}
+
 /// Sends a `PUT` request with a JSON-encoded `body` and the
 /// `application/json` content type, then collects the interesting parts of
 /// the response.
@@ -171,9 +189,22 @@ pub async fn post_body(
     content_type: Option<&str>,
     body: Body,
 ) -> ResponseParts {
+    post_body_with_headers(router, uri, &[], content_type, body).await
+}
+
+async fn post_body_with_headers(
+    router: Router,
+    uri: &str,
+    headers: &[(&str, &str)],
+    content_type: Option<&str>,
+    body: Body,
+) -> ResponseParts {
     let mut builder = Request::builder().method(Method::POST).uri(uri);
     if let Some(content_type) = content_type {
         builder = builder.header(header::CONTENT_TYPE, content_type);
+    }
+    for (name, value) in headers {
+        builder = builder.header(*name, *value);
     }
     let request = builder
         .body(body)
@@ -250,7 +281,7 @@ pub fn next_cursor(parts: &ResponseParts) -> Option<String> {
 mod tests {
     use super::{
         ResponseParts, delete, get, get_response_parts, get_with_headers, next_cursor, post_body,
-        post_json, put_json,
+        post_json, post_json_with_headers, put_json,
     };
     use axum::{
         Json, Router,
@@ -310,6 +341,36 @@ mod tests {
         let body = parts.body.expect("echo response should be json");
         assert_json_include!(actual: body, expected: json!({
             "content_type": "application/json",
+            "body": { "hello": "world" },
+        }));
+    }
+
+    #[tokio::test]
+    async fn post_json_with_headers_sends_the_json_body_and_request_headers() {
+        let router: Router = Router::new().route(
+            "/echo",
+            post_route(|headers: HeaderMap, body: Bytes| async move {
+                let idempotency_key = headers
+                    .get("idempotency-key")
+                    .and_then(|value| value.to_str().ok())
+                    .unwrap_or_default()
+                    .to_owned();
+                let parsed = serde_json::from_slice::<Value>(&body).ok();
+                Json(json!({ "idempotency_key": idempotency_key, "body": parsed }))
+            }),
+        );
+        let parts = post_json_with_headers(
+            router,
+            "/echo",
+            &[("idempotency-key", "key-1")],
+            &json!({ "hello": "world" }),
+        )
+        .await;
+        assert_eq!(parts.status, StatusCode::OK);
+        assert_eq!(parts.content_type, "application/json");
+        let body = parts.body.expect("echo response should be json");
+        assert_json_include!(actual: body, expected: json!({
+            "idempotency_key": "key-1",
             "body": { "hello": "world" },
         }));
     }

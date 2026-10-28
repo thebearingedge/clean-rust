@@ -40,6 +40,10 @@ pub trait TodosRepository: std::fmt::Debug + Send + Sync {
     /// The [`TodoCursor`] tuple must correspond to `sort.key` (see
     /// [`TodoCursor`]).
     ///
+    /// Consuming the stream inside a unit of work holds the transaction's
+    /// connection lock, so the stream must be finished or dropped before
+    /// another repository method is called on the same unit.
+    ///
     /// # Errors
     ///
     /// Yields a [`StorageError`] if the todos cannot be read.

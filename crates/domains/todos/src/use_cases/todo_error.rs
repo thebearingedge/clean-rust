@@ -15,6 +15,14 @@ pub enum TodoError {
     #[error("todo not found")]
     NotFound,
 
+    /// The idempotency key was already used for a different request.
+    #[error("idempotency key was already used for a different request")]
+    IdempotencyKeyReused,
+
+    /// The idempotency key is in use by a request that has not finished yet.
+    #[error("idempotency key is in flight")]
+    IdempotencyKeyInFlight,
+
     /// The repository could not read or write todos.
     #[error(transparent)]
     Storage(#[from] StorageError),

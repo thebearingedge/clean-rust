@@ -6,3 +6,5 @@ create table todos (
 );
 
 select util.add_updated_at('todos');
+
+create index todos_updated_at_todo_id_idx on todos (updated_at, todo_id);

@@ -50,14 +50,20 @@ Leaks to avoid (found in past reviews):
 
 ## Before you finish
 
-Run from the repo root (tooling needs direnv active — see `AGENTS.md`):
+Run from the repo root (tooling needs direnv active — see `AGENTS.md`, whose
+`## Commands` table owns the recipe set). The loop for a finished task:
 
-1. `just cargo-fmt` — zero fmt drift (CI enforces `cargo fmt --all --check`; fix drift with `just cargo-fmt-fix`).
-2. `just cargo-lint` — clippy pedantic with `-D warnings` (also enforces the workspace `missing_docs` lint), zero warnings. Mid-task, when the workspace is intentionally red (e.g. a trait method awaiting its impl), scope it: `just cargo-lint <crate>`.
-3. `just cargo-check <crate> *args` — plain type-check of one crate for the fast loop (e.g. the designed intermediate states between port and impl tasks).
-4. `just cargo-test <crate>` for every crate you touched. Integration tests need Postgres up: `just infrastructure up -d --wait`.
-5. If you added/changed migrations: `just migrate <domain> run` (revert with `just migrate <domain> revert [-- --target-version <n>]`).
+1. `just cargo-fmt` — zero fmt drift; fix with `just cargo-fmt-fix`.
+2. `just cargo-lint` — zero warnings. Mid-task, when the workspace is
+   intentionally red (e.g. a trait method awaiting its impl), scope it:
+   `just cargo-lint <crate>`; between designed intermediate states, plain
+   `just cargo-check <crate>` is the fast loop.
+3. `just cargo-test <crate>` for every crate you touched; integration tests
+   need Postgres up: `just infrastructure up -d --wait`.
+4. Migrations changed: `just migrate <domain> run` (revert syntax lives in
+   the `AGENTS.md` commands table).
 
-Use the `just` recipes above instead of bare `cargo` commands — they wire in env files and keep one place for flags.
+Prefer the `just` recipes over bare `cargo` commands — they wire in the
+per-crate env files (`tools/envs/<name>.env`) and keep one place for flags.
 
 Commits are governed by the `AGENTS.md` hard rules (explicit human permission; the commit is performed by the human or the built-in `build` agent). `.agents/temp/` is your scratch/output area — put notes, plans, and generated artifacts there (forbidden locations: see `AGENTS.md`).

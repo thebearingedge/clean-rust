@@ -35,6 +35,13 @@ impl DbError {
         }
     }
 
+    /// Wraps a driver-protocol violation (a [`sqlx::Error::Protocol`]) with
+    /// `context` describing the operation that failed and `detail`
+    /// describing the violation.
+    pub fn protocol(context: impl Into<String>, detail: impl Into<String>) -> Self {
+        Self::new(context, sqlx::Error::Protocol(detail.into()))
+    }
+
     /// True when the failure means the database is unreachable or degraded
     /// (pool timed out or closed, IO failure).
     #[must_use]

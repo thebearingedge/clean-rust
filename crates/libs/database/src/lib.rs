@@ -9,4 +9,9 @@ pub mod db_error;
 /// A Postgres connectivity probe.
 pub mod health;
 
+/// The [`Database`] handle with transaction support: [`Conn`] access and
+/// the [`UnitOfWork`] owner.
+pub mod unit_of_work;
+
 pub use db_error::{DbContext, DbError};
+pub use unit_of_work::{Conn, Database, UnitOfWork};

@@ -1,14 +1,32 @@
-use axum::{Json, extract::State, http::StatusCode};
+use std::future::Future;
+
+use aide::{
+    OperationInput,
+    generate::GenContext,
+    openapi::{
+        HeaderStyle, Operation, Parameter, ParameterData, ParameterSchemaOrContent, SchemaObject,
+    },
+    operation::add_parameters,
+};
+use axum::{
+    Json,
+    extract::{FromRequestParts, State},
+    http::{HeaderValue, StatusCode, request::Parts},
+    response::{IntoResponse, Response},
+};
 use chrono::{DateTime, Utc};
-use schemars::JsonSchema;
+use schemars::{JsonSchema, json_schema};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use todos::models::idempotency_key::{MAX_LENGTH, MIN_LENGTH, VISIBLE_ASCII_PATTERN};
 use todos::models::todo::{
     NewTodoModel, TodoCursor, TodoFilter, TodoModel, TodoSortKey, TodoUpdateModel,
 };
+use todos::{IdempotencyKey, TodoCreation, TodosInteractor};
 use utils::pagination::{Cursor, Page, Sort, SortOrder};
 use web::{
+    api_error::ApiError,
     cursor_token::CursorError,
     extractors::{ValidatedJson, ValidatedPath, ValidatedQuery},
 };
@@ -60,18 +78,125 @@ impl From<TodoModel> for TodoHttp {
     }
 }
 
+const IDEMPOTENCY_KEY_HEADER: &str = "idempotency-key";
+const IDEMPOTENT_REPLAYED_HEADER: &str = "idempotent-replayed";
+
+/// The optional `Idempotency-Key` request header, parsed into an
+/// [`IdempotencyKey`] for [`add_todo`]: absent means non-idempotent creation,
+/// present means idempotent creation under that key.
+///
+/// A header that is present but not 1 to 64 visible ASCII characters rejects
+/// the request with a `400 Bad Request` error body reading
+/// `invalid idempotency key`.
+pub struct IdempotencyKeyHeader(pub Option<IdempotencyKey>);
+
+impl<S> FromRequestParts<S> for IdempotencyKeyHeader
+where
+    S: Send + Sync,
+{
+    type Rejection = ApiError;
+
+    fn from_request_parts(
+        parts: &mut Parts,
+        _state: &S,
+    ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
+        let key = match parts.headers.get(IDEMPOTENCY_KEY_HEADER) {
+            None => return std::future::ready(Ok(Self(None))),
+            Some(raw) => raw
+                .to_str()
+                .ok()
+                .and_then(IdempotencyKey::parse)
+                .ok_or_else(|| {
+                    ApiError::message(StatusCode::BAD_REQUEST, "invalid idempotency key")
+                }),
+        };
+        std::future::ready(key.map(|key| Self(Some(key))))
+    }
+}
+
+impl OperationInput for IdempotencyKeyHeader {
+    fn operation_input(ctx: &mut GenContext, operation: &mut Operation) {
+        add_parameters(
+            ctx,
+            operation,
+            [Parameter::Header {
+                parameter_data: ParameterData {
+                    name: IDEMPOTENCY_KEY_HEADER.to_owned(),
+                    description: Some(
+                        "Optional client-supplied idempotency key: visible ASCII, 1 to 64 \
+                         characters. Retrying with the same key and body replays the \
+                         original todo; the same key with a different body is rejected, \
+                         and a key still held by an unfinished request is rejected until \
+                         that request completes. A key that is not valid is rejected with \
+                         `400 Bad Request`."
+                            .to_owned(),
+                    ),
+                    required: false,
+                    format: ParameterSchemaOrContent::Schema(SchemaObject {
+                        json_schema: json_schema!({
+                            "type": "string",
+                            "minLength": MIN_LENGTH,
+                            "maxLength": MAX_LENGTH,
+                            "pattern": VISIBLE_ASCII_PATTERN
+                        }),
+                        example: None,
+                        external_docs: None,
+                    }),
+                    deprecated: None,
+                    example: None,
+                    examples: [].into(),
+                    explode: None,
+                    extensions: [].into(),
+                },
+                style: HeaderStyle::Simple,
+            }],
+        );
+    }
+}
+
 /// Adds a new todo and returns it with a `201 Created` status.
+///
+/// When the request carries an `Idempotency-Key` header, the creation is
+/// idempotent: the same key and body replay the todo from the original
+/// request, marked with an `Idempotent-Replayed: true` response header; the
+/// same key with a different request body is rejected; and a key still held
+/// by an unfinished request is rejected until that request completes.
+/// Without the header, every request creates a new todo.
 ///
 /// # Errors
 ///
-/// Returns [`AppError`] as a `400 Bad Request` if the task is empty,
-/// or a `500 Internal Server Error` if storage fails.
+/// Returns [`AppError`] as a `400 Bad Request` if the task is empty (an
+/// invalid `Idempotency-Key` header is rejected by the
+/// [`IdempotencyKeyHeader`] extractor instead), as a `409 Conflict` if the
+/// key is still held by an unfinished request, as a
+/// `422 Unprocessable Entity` if the key was already used for a different
+/// request body, or as a `500 Internal Server Error` /
+/// `503 Service Unavailable` if storage fails.
 pub async fn add_todo(
     State(app_state): State<AppState>,
+    IdempotencyKeyHeader(key): IdempotencyKeyHeader,
     ValidatedJson(new_todo): ValidatedJson<NewTodoHttp>,
-) -> Result<(StatusCode, Json<TodoHttp>), AppError> {
-    let model = app_state.interactors.todos.add(&new_todo.into()).await?;
-    Ok((StatusCode::CREATED, Json(model.into())))
+) -> Result<Response, AppError> {
+    let TodoCreation { todo, replayed } = match key {
+        Some(key) => {
+            app_state
+                .interactors
+                .todos
+                .add_idempotent(&key, &new_todo.into())
+                .await?
+        }
+        None => TodoCreation {
+            todo: app_state.interactors.todos.add(&new_todo.into()).await?,
+            replayed: false,
+        },
+    };
+    let mut response = (StatusCode::CREATED, Json(TodoHttp::from(todo))).into_response();
+    if replayed {
+        response
+            .headers_mut()
+            .insert(IDEMPOTENT_REPLAYED_HEADER, HeaderValue::from_static("true"));
+    }
+    Ok(response)
 }
 
 /// The property that todos are sorted by.
@@ -243,8 +368,9 @@ pub struct ListTodosQuery {
     sort: Option<TodoSortKeyHttp>,
     /// The direction to sort in. Defaults to `asc`.
     order: Option<SortOrderHttp>,
-    /// The maximum number of todos to return, between 1 and 200.
-    #[validate(range(min = 1, max = 200))]
+    /// The maximum number of todos to return, between 1 and
+    /// [`TodosInteractor::MAX_PAGE_SIZE`].
+    #[validate(range(min = 1, max = TodosInteractor::MAX_PAGE_SIZE))]
     limit: Option<u64>,
     /// An opaque cursor token from a previous page's `next` field, for
     /// fetching the next page. Its sort key and order must match `sort` and

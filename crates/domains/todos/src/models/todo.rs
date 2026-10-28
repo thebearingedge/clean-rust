@@ -1,5 +1,11 @@
+use std::fmt::Write as _;
+
 use chrono::{DateTime, Utc};
+use sha2::{Digest, Sha256};
 use uuid::Uuid;
+
+const FINGERPRINT_PREFIX: &str = "create-todo";
+const FINGERPRINT_ABSENT_COMPLETED_AT: &str = "none";
 
 /// Input for creating a new todo.
 #[derive(Debug, Clone)]
@@ -17,6 +23,30 @@ impl NewTodoModel {
     #[must_use]
     pub fn has_valid_task(&self) -> bool {
         !self.task.trim().is_empty()
+    }
+
+    /// Lowercase-hex SHA-256 fingerprint of the canonical request form used
+    /// for idempotency comparisons.
+    ///
+    /// The canonical form is `create-todo|<task>|<completed_at>` where
+    /// `completed_at` is the RFC 3339 timestamp, or `none` for an open todo.
+    #[must_use]
+    pub fn fingerprint(&self) -> String {
+        let canonical_completed_at = self.completed_at.map_or_else(
+            || FINGERPRINT_ABSENT_COMPLETED_AT.to_string(),
+            |ts| ts.to_rfc3339(),
+        );
+        let mut hasher = Sha256::new();
+        hasher.update(format!(
+            "{FINGERPRINT_PREFIX}|{}|{}",
+            self.task, canonical_completed_at
+        ));
+        let digest = hasher.finalize();
+        let mut fingerprint = String::with_capacity(digest.len() * 2);
+        for byte in digest {
+            let _ = write!(fingerprint, "{byte:02x}");
+        }
+        fingerprint
     }
 }
 
@@ -96,5 +126,65 @@ impl From<&TodoModel> for TodoCursor {
             todo_id: todo.todo_id,
             updated_at: todo.updated_at,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fingerprint_is_stable_across_calls() {
+        let todo = NewTodoModel {
+            task: "write the report".to_string(),
+            completed_at: None,
+        };
+
+        assert_eq!(todo.fingerprint(), todo.fingerprint());
+    }
+
+    #[test]
+    fn fingerprint_distinguishes_tasks() {
+        let todo = NewTodoModel {
+            task: "write the report".to_string(),
+            completed_at: None,
+        };
+        let other = NewTodoModel {
+            task: "read the report".to_string(),
+            completed_at: None,
+        };
+
+        assert_ne!(todo.fingerprint(), other.fingerprint());
+    }
+
+    #[test]
+    fn fingerprint_distinguishes_completed_at_values() {
+        let todo = NewTodoModel {
+            task: "write the report".to_string(),
+            completed_at: None,
+        };
+        let other = NewTodoModel {
+            task: "write the report".to_string(),
+            completed_at: Some(DateTime::<Utc>::UNIX_EPOCH),
+        };
+
+        assert_ne!(todo.fingerprint(), other.fingerprint());
+    }
+
+    #[test]
+    fn fingerprint_is_64_char_lowercase_hex() {
+        let todo = NewTodoModel {
+            task: "write the report".to_string(),
+            completed_at: None,
+        };
+        let fingerprint = todo.fingerprint();
+
+        assert_eq!(fingerprint.len(), 64);
+        assert!(
+            fingerprint
+                .chars()
+                .all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
+            "expected lowercase hex, got {fingerprint}"
+        );
     }
 }
