@@ -3,12 +3,9 @@
 
 use sqlx::PgPool;
 
-use database::Database;
+use database::{Claim, Database, IdempotencyKey, IdempotencyRepository, PgIdempotencyRepository};
 use todos::models::todo::NewTodoModel;
-use todos::{
-    Claim, IdempotencyKey, IdempotencyRepository, PgIdempotencyRepository, PgTodosRepository,
-    PgTodosUnitOfWork, TodosRepository, TodosUnitOfWork,
-};
+use todos::{PgTodosRepository, PgTodosUnitOfWork, TodosRepository, TodosUnitOfWork};
 
 #[must_use]
 fn new_todo(task: &str) -> NewTodoModel {

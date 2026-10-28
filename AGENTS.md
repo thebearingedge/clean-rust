@@ -52,6 +52,12 @@ Tests require the compose services running: `just infrastructure up -d --wait`.
 
 ## Conventions
 
+- **Extraction policy:** any code that could be used by more than one domain
+  must not live in a single domain crate. Extract it aggressively into the
+  most appropriate `crates/libs/*` crate — or a brand-new lib crate when none
+  fits — rather than letting shared-shaped code accumulate inside a domain.
+  Applies when writing new code and to every refactoring pass after feature
+  work lands.
 - Agent skills live in `.agents/skills/<name>/SKILL.md`. When a session establishes new durable rules (lints, patterns, conventions), update the relevant skill so they carry forward. Layer and naming conventions, error-handling patterns, and Rust lint rules live in the `writing-rust` skill — not here.
 
 ## Agent Workflow

@@ -10,14 +10,12 @@ use futures::TryStreamExt;
 use tracing::instrument;
 use uuid::Uuid;
 
+use database::{Claim, IdempotencyKey};
 use utils::pagination::{Cursor, Page, Sort};
 
 use crate::{
-    models::{
-        idempotency_key::IdempotencyKey,
-        todo::{NewTodoModel, TodoCursor, TodoFilter, TodoModel, TodoSortKey, TodoUpdateModel},
-    },
-    use_cases::repositories::{Claim, TodosRepository},
+    models::todo::{NewTodoModel, TodoCursor, TodoFilter, TodoModel, TodoSortKey, TodoUpdateModel},
+    use_cases::repositories::TodosRepository,
     use_cases::todo_error::TodoError,
     use_cases::unit_of_work::TodosUnitOfWork,
 };

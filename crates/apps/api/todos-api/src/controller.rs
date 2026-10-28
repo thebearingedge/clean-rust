@@ -1,34 +1,23 @@
-use std::future::Future;
-
-use aide::{
-    OperationInput,
-    generate::GenContext,
-    openapi::{
-        HeaderStyle, Operation, Parameter, ParameterData, ParameterSchemaOrContent, SchemaObject,
-    },
-    operation::add_parameters,
-};
 use axum::{
     Json,
-    extract::{FromRequestParts, State},
-    http::{HeaderValue, StatusCode, request::Parts},
+    extract::State,
+    http::{HeaderValue, StatusCode},
     response::{IntoResponse, Response},
 };
 use chrono::{DateTime, Utc};
-use schemars::{JsonSchema, json_schema};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use todos::models::idempotency_key::{MAX_LENGTH, MIN_LENGTH, VISIBLE_ASCII_PATTERN};
+use database::{IdempotencyKey, MAX_LENGTH, MIN_LENGTH, VISIBLE_ASCII_PATTERN};
 use todos::models::todo::{
     NewTodoModel, TodoCursor, TodoFilter, TodoModel, TodoSortKey, TodoUpdateModel,
 };
-use todos::{IdempotencyKey, TodoCreation, TodosInteractor};
+use todos::{TodoCreation, TodosInteractor};
 use utils::pagination::{Cursor, Page, Sort, SortOrder};
 use web::{
-    api_error::ApiError,
     cursor_token::CursorError,
-    extractors::{ValidatedJson, ValidatedPath, ValidatedQuery},
+    extractors::{HeaderConfig, OptionalHeader, ValidatedJson, ValidatedPath, ValidatedQuery},
 };
 
 use crate::{app_error::AppError, app_state::AppState};
@@ -78,80 +67,33 @@ impl From<TodoModel> for TodoHttp {
     }
 }
 
-const IDEMPOTENCY_KEY_HEADER: &str = "idempotency-key";
 const IDEMPOTENT_REPLAYED_HEADER: &str = "idempotent-replayed";
 
-/// The optional `Idempotency-Key` request header, parsed into an
-/// [`IdempotencyKey`] for [`add_todo`]: absent means non-idempotent creation,
-/// present means idempotent creation under that key.
+/// Configuration for the optional `Idempotency-Key` request header of
+/// [`add_todo`], extracted by [`OptionalHeader`]: absent means non-idempotent
+/// creation, present means idempotent creation under that key.
 ///
 /// A header that is present but not 1 to 64 visible ASCII characters rejects
 /// the request with a `400 Bad Request` error body reading
-/// `invalid idempotency key`.
-pub struct IdempotencyKeyHeader(pub Option<IdempotencyKey>);
+/// [`HeaderConfig::REJECTION`].
+pub struct IdempotencyKeyHeader;
 
-impl<S> FromRequestParts<S> for IdempotencyKeyHeader
-where
-    S: Send + Sync,
-{
-    type Rejection = ApiError;
+impl HeaderConfig for IdempotencyKeyHeader {
+    const HEADER: &'static str = "idempotency-key";
 
-    fn from_request_parts(
-        parts: &mut Parts,
-        _state: &S,
-    ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
-        let key = match parts.headers.get(IDEMPOTENCY_KEY_HEADER) {
-            None => return std::future::ready(Ok(Self(None))),
-            Some(raw) => raw
-                .to_str()
-                .ok()
-                .and_then(IdempotencyKey::parse)
-                .ok_or_else(|| {
-                    ApiError::message(StatusCode::BAD_REQUEST, "invalid idempotency key")
-                }),
-        };
-        std::future::ready(key.map(|key| Self(Some(key))))
-    }
-}
+    const MIN_LENGTH: usize = MIN_LENGTH;
 
-impl OperationInput for IdempotencyKeyHeader {
-    fn operation_input(ctx: &mut GenContext, operation: &mut Operation) {
-        add_parameters(
-            ctx,
-            operation,
-            [Parameter::Header {
-                parameter_data: ParameterData {
-                    name: IDEMPOTENCY_KEY_HEADER.to_owned(),
-                    description: Some(
-                        "Optional client-supplied idempotency key: visible ASCII, 1 to 64 \
-                         characters. Retrying with the same key and body replays the \
-                         original todo; the same key with a different body is rejected, \
-                         and a key still held by an unfinished request is rejected until \
-                         that request completes. A key that is not valid is rejected with \
-                         `400 Bad Request`."
-                            .to_owned(),
-                    ),
-                    required: false,
-                    format: ParameterSchemaOrContent::Schema(SchemaObject {
-                        json_schema: json_schema!({
-                            "type": "string",
-                            "minLength": MIN_LENGTH,
-                            "maxLength": MAX_LENGTH,
-                            "pattern": VISIBLE_ASCII_PATTERN
-                        }),
-                        example: None,
-                        external_docs: None,
-                    }),
-                    deprecated: None,
-                    example: None,
-                    examples: [].into(),
-                    explode: None,
-                    extensions: [].into(),
-                },
-                style: HeaderStyle::Simple,
-            }],
-        );
-    }
+    const MAX_LENGTH: usize = MAX_LENGTH;
+
+    const PATTERN: &'static str = VISIBLE_ASCII_PATTERN;
+
+    const REJECTION: &'static str = "invalid idempotency key";
+
+    const DESCRIPTION: &'static str = "Optional client-supplied idempotency key: visible ASCII, \
+         1 to 64 characters. Retrying with the same key and body replays the original todo; the \
+         same key with a different body is rejected, and a key still held by an unfinished \
+         request is rejected until that request completes. A key that is not valid is rejected \
+         with `400 Bad Request`.";
 }
 
 /// Adds a new todo and returns it with a `201 Created` status.
@@ -166,17 +108,18 @@ impl OperationInput for IdempotencyKeyHeader {
 /// # Errors
 ///
 /// Returns [`AppError`] as a `400 Bad Request` if the task is empty (an
-/// invalid `Idempotency-Key` header is rejected by the
-/// [`IdempotencyKeyHeader`] extractor instead), as a `409 Conflict` if the
+/// invalid `Idempotency-Key` header is rejected by the [`OptionalHeader`]
+/// extractor instead), as a `409 Conflict` if the
 /// key is still held by an unfinished request, as a
 /// `422 Unprocessable Entity` if the key was already used for a different
 /// request body, or as a `500 Internal Server Error` /
 /// `503 Service Unavailable` if storage fails.
 pub async fn add_todo(
     State(app_state): State<AppState>,
-    IdempotencyKeyHeader(key): IdempotencyKeyHeader,
+    OptionalHeader { value: raw_key, .. }: OptionalHeader<IdempotencyKeyHeader>,
     ValidatedJson(new_todo): ValidatedJson<NewTodoHttp>,
 ) -> Result<Response, AppError> {
+    let key = raw_key.as_deref().and_then(IdempotencyKey::parse);
     let TodoCreation { todo, replayed } = match key {
         Some(key) => {
             app_state

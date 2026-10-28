@@ -5,7 +5,9 @@ use async_trait::async_trait;
 
 use storage::StorageError;
 
-use crate::use_cases::repositories::{IdempotencyRepository, TodosRepository};
+use database::IdempotencyRepository;
+
+use crate::use_cases::repositories::TodosRepository;
 
 /// Transaction-scoping port that begins a unit of work whose repositories
 /// share one underlying transaction.

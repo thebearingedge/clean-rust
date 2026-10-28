@@ -17,7 +17,7 @@ Dependency direction is strictly apps → domains → libs. Put new code where i
 - **Business rules, ports, use cases** → `crates/domains/<domain>/src/use_cases`
 - **Domain models and invariants** (validation like `has_valid_task`) → `crates/domains/<domain>/src/models`
 - **Database implementations** (sqlx, sea-query) → `crates/domains/<domain>/src/infrastructure`
-- **Generic reusable plumbing** (web middleware, error envelopes, telemetry, pagination) → `crates/libs/*`
+- **Generic reusable plumbing** (web middleware, error envelopes, telemetry, pagination) → `crates/libs/*`. Code with cross-domain shape (ports, models, adapters a second domain could adopt) is extracted to the appropriate lib — or a new lib crate — per the extraction policy in `AGENTS.md`; don't let it strand in one domain.
 
 Leaks to avoid (found in past reviews):
 
@@ -25,6 +25,7 @@ Leaks to avoid (found in past reviews):
 - No domain-specific types in shared libs — e.g. `CursorError::SortMismatch` existing only for todos in `libs/web` was flagged; add a config knob or keep the concern in the app instead.
 - Domain → HTTP status mapping belongs in the app's `app_error.rs`, never in `libs/web` (`From<StorageError>` impls hard-coding 503/409/500 there were flagged).
 - No UUID-version or ID-scheme checks in use cases (`get_version_num() != 7` conflated "bad ID" with "not found" — don't repeat it).
+- Domain-general machinery stranded in a single domain (e.g. the idempotency machinery initially built in `todos`) gets flagged for extraction.
 
 ## Naming and structure — suffixes carry the layer
 

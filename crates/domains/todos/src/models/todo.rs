@@ -42,11 +42,12 @@ impl NewTodoModel {
             self.task, canonical_completed_at
         ));
         let digest = hasher.finalize();
-        let mut fingerprint = String::with_capacity(digest.len() * 2);
-        for byte in digest {
-            let _ = write!(fingerprint, "{byte:02x}");
-        }
-        fingerprint
+        digest
+            .iter()
+            .fold(String::with_capacity(digest.len() * 2), |mut hex, byte| {
+                let _ = write!(hex, "{byte:02x}");
+                hex
+            })
     }
 }
 

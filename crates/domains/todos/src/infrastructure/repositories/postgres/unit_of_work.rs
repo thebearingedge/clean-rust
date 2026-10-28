@@ -1,10 +1,10 @@
 use async_trait::async_trait;
 
-use database::{Database, UnitOfWork};
+use database::{Database, IdempotencyRepository, PgIdempotencyRepository, UnitOfWork};
 use storage::StorageError;
 
-use crate::infrastructure::repositories::postgres::{PgIdempotencyRepository, PgTodosRepository};
-use crate::use_cases::repositories::{IdempotencyRepository, TodosRepository};
+use crate::infrastructure::repositories::postgres::PgTodosRepository;
+use crate::use_cases::repositories::TodosRepository;
 use crate::use_cases::unit_of_work::{TodosUnit, TodosUnitOfWork};
 
 /// Postgres implementation of the

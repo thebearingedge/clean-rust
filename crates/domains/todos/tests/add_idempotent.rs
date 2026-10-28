@@ -6,12 +6,9 @@ use std::sync::Arc;
 
 use sqlx::PgPool;
 
-use database::Database;
+use database::{Claim, Database, IdempotencyKey, IdempotencyRepository, PgIdempotencyRepository};
 use todos::models::todo::NewTodoModel;
-use todos::{
-    Claim, IdempotencyKey, IdempotencyRepository, PgIdempotencyRepository, PgTodosRepository,
-    PgTodosUnitOfWork, TodoError, TodosInteractor,
-};
+use todos::{PgTodosRepository, PgTodosUnitOfWork, TodoError, TodosInteractor};
 
 #[must_use]
 fn new_todo(task: &str) -> NewTodoModel {

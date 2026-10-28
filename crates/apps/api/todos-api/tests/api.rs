@@ -6,11 +6,11 @@ mod common;
 #[cfg(test)]
 mod tests {
     use axum::http::StatusCode;
+    use database::{MAX_LENGTH, MIN_LENGTH, VISIBLE_ASCII_PATTERN};
     use serde_json::json;
     use serde_json_assert::assert_json_include;
     use sqlx::PgPool;
     use todos::TodosInteractor;
-    use todos::models::idempotency_key::{MAX_LENGTH, MIN_LENGTH, VISIBLE_ASCII_PATTERN};
 
     use web::test_support::{delete, get, post_json};
 

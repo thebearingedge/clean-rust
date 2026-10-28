@@ -7,13 +7,10 @@ mod use_cases;
 
 // Scoped re-exports so apps can construct the concrete postgres adapter and
 // run migrations against it — exactly one public path to each.
-pub use infrastructure::repositories::postgres::{
-    MIGRATOR, PgIdempotencyRepository, PgTodosRepository, PgTodosUnitOfWork,
-};
-pub use models::idempotency_key::IdempotencyKey;
+pub use infrastructure::repositories::postgres::{MIGRATOR, PgTodosRepository, PgTodosUnitOfWork};
 pub use use_cases::{
     TodoError,
-    repositories::{Claim, IdempotencyRepository, TodosRepository},
+    repositories::TodosRepository,
     todos_interactor::{TodoCreation, TodosInteractor},
     unit_of_work::{TodosUnit, TodosUnitOfWork},
 };
