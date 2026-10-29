@@ -3,8 +3,8 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use anyhow::Context;
-use axum::{Router, serve};
+use anyhow::{Context, ensure};
+use axum::{Router, http::HeaderValue, serve};
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 use tokio::net::TcpListener;
@@ -13,6 +13,7 @@ use telemetry::provider::init_tracer_provider;
 use todos::MIGRATOR;
 use todos_api::{api::create_todos_api, app_state::AppState};
 use web::{
+    cors::with_cors,
     graceful_shutdown::{Draining, graceful_shutdown},
     health::{self, HealthCheck},
     middleware::with_http_tracing,
@@ -35,8 +36,34 @@ async fn build_pool(database_url: &str) -> anyhow::Result<PgPool> {
         .context("connecting to postgres")
 }
 
-fn build_router(pool: &PgPool, draining: Draining) -> Router {
-    with_http_tracing(create_todos_api(AppState::new(pool.clone()))).merge(health::router(
+/// Parses a comma-separated `CORS_ALLOWED_ORIGINS` value into exact-origin
+/// header values. Entries are trimmed, empty entries are dropped, and empty
+/// input yields an empty list (CORS off).
+///
+/// # Errors
+///
+/// Returns an error when an entry ends with a slash or is not a valid header
+/// value.
+fn parse_allowed_origins(raw: &str) -> anyhow::Result<Vec<HeaderValue>> {
+    raw.split(',')
+        .map(str::trim)
+        .filter(|origin| !origin.is_empty())
+        .map(|origin| {
+            ensure!(
+                !origin.ends_with('/'),
+                "CORS origin must not end with a slash: {origin}"
+            );
+            HeaderValue::from_str(origin).with_context(|| format!("invalid CORS origin: {origin}"))
+        })
+        .collect()
+}
+
+fn build_router(pool: &PgPool, draining: Draining, allowed_origins: Vec<HeaderValue>) -> Router {
+    with_cors(
+        with_http_tracing(create_todos_api(AppState::new(pool.clone()))),
+        allowed_origins,
+    )
+    .merge(health::router(
         vec![HealthCheck::with_resource(
             "postgres",
             pool.clone(),
@@ -66,6 +93,10 @@ async fn main() -> anyhow::Result<()> {
 
     let database_url = std::env::var("DATABASE_URL").context("DATABASE_URL must be set")?;
 
+    let allowed_origins =
+        parse_allowed_origins(&std::env::var("CORS_ALLOWED_ORIGINS").unwrap_or_default())
+            .context("invalid CORS_ALLOWED_ORIGINS")?;
+
     let pool = build_pool(&database_url).await?;
 
     tracing::info!("connected to postgres. running migrations...");
@@ -74,7 +105,7 @@ async fn main() -> anyhow::Result<()> {
 
     tracing::info!("migrations up to date");
 
-    let router = build_router(&pool, draining.clone());
+    let router = build_router(&pool, draining.clone(), allowed_origins);
 
     let address: SocketAddr = std::env::var("LISTEN_ADDRESS")
         .unwrap_or("0.0.0.0:3000".to_string())
@@ -101,4 +132,57 @@ async fn main() -> anyhow::Result<()> {
     shutdown_telemetry?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use axum::http::HeaderValue;
+
+    use super::parse_allowed_origins;
+
+    #[test]
+    fn empty_raw_yields_no_origins() {
+        assert_eq!(
+            parse_allowed_origins("").unwrap(),
+            Vec::<HeaderValue>::new()
+        );
+    }
+
+    #[test]
+    fn entries_are_trimmed() {
+        let origins =
+            parse_allowed_origins(" http://localhost:5173 , http://localhost:3000 ").unwrap();
+        assert_eq!(
+            origins,
+            vec![
+                HeaderValue::from_static("http://localhost:5173"),
+                HeaderValue::from_static("http://localhost:3000"),
+            ]
+        );
+    }
+
+    #[test]
+    fn trailing_slash_is_rejected_with_the_origin_named() {
+        let err = parse_allowed_origins("http://localhost:5173/").unwrap_err();
+        assert!(err.to_string().contains("http://localhost:5173"));
+    }
+
+    #[test]
+    fn invalid_header_value_is_rejected() {
+        let err = parse_allowed_origins("http://bad\u{1}origin.com").unwrap_err();
+        assert!(err.to_string().contains("invalid CORS origin"));
+    }
+
+    #[test]
+    fn empty_entries_between_commas_are_dropped() {
+        let origins =
+            parse_allowed_origins("http://localhost:5173,,http://localhost:3000").unwrap();
+        assert_eq!(
+            origins,
+            vec![
+                HeaderValue::from_static("http://localhost:5173"),
+                HeaderValue::from_static("http://localhost:3000"),
+            ]
+        );
+    }
 }
