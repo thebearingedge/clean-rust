@@ -5,8 +5,13 @@
 
 use std::{future::Ready, sync::Arc};
 
-use aide::{openapi::OpenApi, transform::TransformOperation};
+use aide::{
+    OperationOutput,
+    openapi::{Header, HeaderStyle, OpenApi, ParameterSchemaOrContent, ReferenceOr, SchemaObject},
+    transform::TransformOperation,
+};
 use axum::{Extension, Json};
+use schemars::json_schema;
 
 use crate::api_error::{ErrorBody, ValidationErrorBody};
 
@@ -50,4 +55,90 @@ pub fn standard_put_errors(op: TransformOperation<'_>) -> TransformOperation<'_>
 /// there is no 415 response.
 pub fn standard_delete_errors(op: TransformOperation<'_>) -> TransformOperation<'_> {
     standard_errors(op)
+}
+
+/// Documents a string-valued response header named `name` on the `CODE`
+/// response of the operation, alongside the response that `T` documents.
+///
+/// Use it in place of `TransformOperation::response::<CODE, T>` when a
+/// successful create response also carries a `Location` header (or any other
+/// string header).
+pub fn response_header<'a, T, const CODE: u16>(
+    op: TransformOperation<'a>,
+    name: &'static str,
+    description: &str,
+) -> TransformOperation<'a>
+where
+    T: OperationOutput,
+{
+    op.response_with::<CODE, T, _>(|mut response| {
+        response.inner().headers.insert(
+            name.to_owned(),
+            ReferenceOr::Item(Header {
+                description: Some(description.to_owned()),
+                style: HeaderStyle::Simple,
+                required: true,
+                deprecated: None,
+                format: ParameterSchemaOrContent::Schema(SchemaObject {
+                    json_schema: json_schema!({ "type": "string" }),
+                    external_docs: None,
+                    example: None,
+                }),
+                example: None,
+                examples: [].into(),
+                extensions: [].into(),
+            }),
+        );
+        response
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use aide::{
+        openapi::{Operation, ReferenceOr, StatusCode},
+        transform::TransformOperation,
+    };
+    use axum::Json;
+    use serde_json::json;
+    use serde_json_assert::assert_json_include;
+
+    use super::response_header;
+
+    #[test]
+    fn response_header_documents_a_required_string_header() {
+        let mut operation = Operation::default();
+        let op = response_header::<Json<String>, 201>(
+            TransformOperation::new(&mut operation),
+            "Location",
+            "The path of the new todo, relative to the service root.",
+        );
+        drop(op);
+
+        let responses = operation
+            .responses
+            .as_ref()
+            .expect("the operation should document its responses");
+        let ReferenceOr::Item(created) = responses
+            .responses
+            .get(&StatusCode::Code(201))
+            .expect("the operation should document a 201 response")
+        else {
+            panic!("the 201 response should be documented inline");
+        };
+        let ReferenceOr::Item(location) = created
+            .headers
+            .get("Location")
+            .expect("the 201 response should document the Location header")
+        else {
+            panic!("the Location header should be documented inline");
+        };
+
+        let header = serde_json::to_value(location).expect("the header should serialize");
+        assert_json_include!(actual: header, expected: json!({
+            "required": true,
+            "description": "The path of the new todo, relative to the service root.",
+            "schema": { "type": "string" }
+        }));
+    }
 }

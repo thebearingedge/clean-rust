@@ -1,7 +1,7 @@
 use axum::{
     Json,
     extract::State,
-    http::{HeaderValue, StatusCode},
+    http::{HeaderValue, StatusCode, header},
     response::{IntoResponse, Response},
 };
 use chrono::{DateTime, Utc};
@@ -9,7 +9,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{app_error::AppError, app_state::AppState};
+use crate::{app_error::AppError, app_state::AppState, paths::TODOS_PATH};
 use database::{
     IDEMPOTENCY_MAX_LENGTH, IDEMPOTENCY_MIN_LENGTH, IDEMPOTENCY_VISIBLE_ASCII_PATTERN,
     IdempotencyKey,
@@ -100,6 +100,9 @@ impl HeaderConfig for IdempotencyKeyHeader {
 
 /// Adds a new todo and returns it with a `201 Created` status.
 ///
+/// The response carries a `Location` header with the relative path of the
+/// new todo, built from [`crate::paths::TODOS_PATH`].
+///
 /// When the request carries an `Idempotency-Key` header, the creation is
 /// idempotent: the same key and body replay the todo from the original
 /// request, marked with an `Idempotent-Replayed: true` response header; the
@@ -135,7 +138,12 @@ pub async fn add_todo(
             replayed: false,
         },
     };
-    let mut response = (StatusCode::CREATED, Json(TodoHttp::from(todo))).into_response();
+    let mut response = (
+        StatusCode::CREATED,
+        [(header::LOCATION, format!("{TODOS_PATH}/{}", todo.todo_id))],
+        Json(TodoHttp::from(todo)),
+    )
+        .into_response();
     if replayed {
         response
             .headers_mut()

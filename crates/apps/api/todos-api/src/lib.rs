@@ -16,3 +16,5 @@ mod app_error;
 pub mod app_state;
 /// HTTP DTOs and request handlers.
 pub mod controller;
+/// The route paths shared by the router and the create response.
+pub mod paths;

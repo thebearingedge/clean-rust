@@ -105,6 +105,10 @@ mod tests {
 
         assert_eq!(second_id, first_id);
         assert_eq!(todo_row_count(&postgres).await, 1);
+
+        let location = format!("/v1/todos/{first_id}");
+        assert_eq!(first.header("location"), Some(location.clone()));
+        assert_eq!(second.header("location"), Some(location));
     }
 
     #[sqlx::test(migrator = "todos::MIGRATOR")]
