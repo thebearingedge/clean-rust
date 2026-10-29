@@ -305,13 +305,16 @@ impl TodoPageHttp {
     }
 }
 
+/// The maximum number of identifiers the `todoId` filter accepts.
+pub const MAX_TODO_ID_FILTER_IDS: usize = 50;
+
 /// The query parameters for listing todos. All parameters are optional; the
 /// `todoId` and `isCompleted` filters combine conjunctively.
 #[derive(Debug, Deserialize, JsonSchema, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ListTodosQuery {
     /// Restricts results to todos whose identifier is in this list (an empty
-    /// list matches nothing). At most 50 identifiers.
+    /// list matches nothing). At most [`MAX_TODO_ID_FILTER_IDS`] identifiers.
     #[validate(length(max = 50))]
     todo_id: Option<Vec<Uuid>>,
     /// Restricts results to todos that are completed (`true`) or open

@@ -32,8 +32,8 @@ pub struct TodoCreation {
     pub replayed: bool,
 }
 
-#[derive(Clone, Debug)]
 /// Coordinates the todos use cases over the injected repository port.
+#[derive(Clone, Debug)]
 pub struct TodosInteractor {
     repository: Arc<dyn TodosRepository>,
     unit_of_work: Arc<dyn TodosUnitOfWork>,
@@ -174,11 +174,11 @@ impl TodosInteractor {
     /// [`TodoError::Storage`] if the repository cannot persist the delete.
     #[instrument(skip_all)]
     pub async fn remove(&self, todo_id: Uuid) -> Result<(), TodoError> {
-        if self.repository.delete(todo_id).await? {
-            Ok(())
-        } else {
-            Err(TodoError::NotFound)
-        }
+        self.repository
+            .delete(todo_id)
+            .await?
+            .then_some(())
+            .ok_or(TodoError::NotFound)
     }
 
     /// # Errors

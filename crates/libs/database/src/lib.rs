@@ -24,3 +24,8 @@ pub use idempotency::{
     IdempotencyKey, IdempotencyRepository, PgIdempotencyRepository,
 };
 pub use unit_of_work::{Conn, Database, UnitOfWork};
+
+/// Migrations for the canonical base schema: the `util` schema, the `string`
+/// domain, `util.add_updated_at`, the `idempotency_key_status` type, and the
+/// `idempotency_keys` table.
+pub static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!();

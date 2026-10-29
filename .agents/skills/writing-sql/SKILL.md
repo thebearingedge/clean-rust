@@ -63,6 +63,30 @@ create index idempotency_keys_entity_id_idx on idempotency_keys (entity_id);
   the referencing column can replace one (precedent: `idempotency_keys.entity_id`
   dropped its FK in favor of `idempotency_keys_entity_id_idx`).
 
+## Provisioning a new domain
+
+Every domain owns its own database (provisioned in the docker setup), so each
+domain's migration set must be **self-contained** — it re-creates the
+database-global objects it needs rather than depending on another domain's
+migrator having run first.
+
+- The canonical copies of the shared objects live in
+  `crates/libs/database/migrations/` (embedded via `database::MIGRATOR` for the
+  database crate's own tests): schema `util`, domain `string`,
+  `util.add_updated_at`, and (when the domain uses idempotency — the Rust
+  machinery is in `libs/database`) the `idempotency_key_status` enum +
+  `idempotency_keys` table. Existing domains keep their own self-contained
+  copies (`todos` retains its own).
+- Seed the new domain's `migrations/` by **copying** those files (fresh versions
+  that sort before the domain's first table), never by referencing them.
+  Collisions across domains are not a concern — separate databases means
+  separate `_sqlx_migrations` tables.
+- Omitting a shared object fails loudly at first apply (e.g. `create table`
+  referencing a missing `string` domain), not silently — that failure is the
+  reminder to seed.
+- Then follow the placement rules above: standalone types before use, domain
+  tables after the seeded shared set.
+
 ## Lifecycle (sqlx checksums)
 
 - `just migrate <domain> run` validates the checksums of applied migrations and

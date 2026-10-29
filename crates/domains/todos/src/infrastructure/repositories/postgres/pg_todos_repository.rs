@@ -45,9 +45,9 @@ impl From<TodoRow> for TodoModel {
     }
 }
 
-#[derive(Clone, Debug)]
 /// Postgres implementation of the
 /// [`TodosRepository`](crate::use_cases::repositories::TodosRepository) port.
+#[derive(Clone, Debug)]
 pub struct PgTodosRepository {
     database: Database,
 }
@@ -163,8 +163,8 @@ impl Interface for PgTodosRepository {
                 Todos::UpdatedAt,
             ])
             .from(Todos::Table)
-            .apply_if(filter.todo_id.clone(), |q, v| {
-                q.and_where(Expr::col(Todos::TodoId).eq_any(v));
+            .apply_if(filter.todo_id.as_deref(), |q, v| {
+                q.and_where(Expr::col(Todos::TodoId).eq_any(v.iter().copied()));
             })
             .apply_if(filter.is_completed, |q, v| {
                 q.and_where(if v {

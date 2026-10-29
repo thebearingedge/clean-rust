@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt::Write as _;
 
 use chrono::{DateTime, Utc};
@@ -32,9 +33,9 @@ impl NewTodoModel {
     /// `completed_at` is the RFC 3339 timestamp, or `none` for an open todo.
     #[must_use]
     pub fn fingerprint(&self) -> String {
-        let canonical_completed_at = self.completed_at.map_or_else(
-            || FINGERPRINT_ABSENT_COMPLETED_AT.to_string(),
-            |ts| ts.to_rfc3339(),
+        let canonical_completed_at: Cow<'static, str> = self.completed_at.map_or_else(
+            || Cow::Borrowed(FINGERPRINT_ABSENT_COMPLETED_AT),
+            |ts| Cow::Owned(ts.to_rfc3339()),
         );
         let mut hasher = Sha256::new();
         hasher.update(format!(

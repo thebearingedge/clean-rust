@@ -14,6 +14,9 @@ use uuid::Uuid;
 /// [`crate::middleware::with_http_tracing`].
 pub const REQUEST_ID_HEADER: HeaderName = HeaderName::from_static("x-request-id");
 
+/// The maximum length in bytes of an acceptable inbound request ID.
+pub const MAX_REQUEST_ID_LENGTH: usize = 64;
+
 tokio::task_local! {
     static CURRENT: String;
 }
@@ -40,8 +43,9 @@ impl MakeRequestId for MakeRequestUuidV7 {
     }
 }
 
-/// Removes an untrusted inbound [`REQUEST_ID_HEADER`] that is longer than 64
-/// bytes or contains bytes outside `[A-Za-z0-9_-]`, so that
+/// Removes an untrusted inbound [`REQUEST_ID_HEADER`] that is longer than
+/// [`MAX_REQUEST_ID_LENGTH`] bytes or contains bytes outside
+/// `[A-Za-z0-9_-]`, so that
 /// `SetRequestIdLayer` (which never overrides an existing header) mints a
 /// fresh `UUIDv7` instead of echoing attacker-controlled content back to the
 /// caller.
@@ -71,7 +75,7 @@ pub async fn scope(req: Request, next: Next) -> Response {
 }
 
 fn acceptable(value: &HeaderValue) -> bool {
-    value.len() <= 64
+    value.len() <= MAX_REQUEST_ID_LENGTH
         && value
             .as_bytes()
             .iter()
@@ -86,7 +90,6 @@ mod tests {
     use http_body_util::BodyExt;
     use serde_json::Value;
     use tower::ServiceExt;
-
     use tower_http::request_id::MakeRequestId;
 
     use super::{REQUEST_ID_HEADER, current, sanitize, scope};

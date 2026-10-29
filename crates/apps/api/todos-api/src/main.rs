@@ -4,7 +4,11 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use anyhow::{Context, ensure};
-use axum::{Router, http::HeaderValue, serve};
+use axum::{
+    Router,
+    http::{HeaderName, HeaderValue, Method, header},
+    serve,
+};
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
 use tokio::net::TcpListener;
@@ -13,7 +17,7 @@ use telemetry::provider::init_tracer_provider;
 use todos::MIGRATOR;
 use todos_api::{api::create_todos_api, app_state::AppState};
 use web::{
-    cors::with_cors,
+    cors::{IDEMPOTENCY_KEY, TRACEPARENT, TRACESTATE, with_cors},
     graceful_shutdown::{Draining, graceful_shutdown},
     health::{self, HealthCheck},
     middleware::with_http_tracing,
@@ -23,6 +27,13 @@ const MAX_CONNECTIONS: u32 = 10;
 const MIN_CONNECTIONS: u32 = 2;
 const ACQUIRE_TIMEOUT: Duration = Duration::from_secs(3);
 const READINESS_TIMEOUT: Duration = Duration::from_secs(2);
+const ALLOWED_METHODS: [Method; 4] = [Method::GET, Method::POST, Method::PUT, Method::DELETE];
+const ALLOWED_HEADERS: [HeaderName; 4] = [
+    header::CONTENT_TYPE,
+    IDEMPOTENCY_KEY,
+    TRACEPARENT,
+    TRACESTATE,
+];
 
 async fn build_pool(database_url: &str) -> anyhow::Result<PgPool> {
     tracing::info!("connecting to postgres...");
@@ -62,6 +73,8 @@ fn build_router(pool: &PgPool, draining: Draining, allowed_origins: Vec<HeaderVa
     with_cors(
         with_http_tracing(create_todos_api(AppState::new(pool.clone()))),
         allowed_origins,
+        ALLOWED_METHODS,
+        ALLOWED_HEADERS,
     )
     .merge(health::router(
         vec![HealthCheck::with_resource(
@@ -108,7 +121,7 @@ async fn main() -> anyhow::Result<()> {
     let router = build_router(&pool, draining.clone(), allowed_origins);
 
     let address: SocketAddr = std::env::var("LISTEN_ADDRESS")
-        .unwrap_or("0.0.0.0:3000".to_string())
+        .unwrap_or_else(|_| "0.0.0.0:3000".to_string())
         .parse()
         .context("getting socket address")?;
 

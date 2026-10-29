@@ -53,17 +53,16 @@ impl From<StorageError> for AppError {
 
 impl From<TodoError> for AppError {
     fn from(e: TodoError) -> Self {
+        let message = e.to_string();
         match e {
-            TodoError::EmptyTask => {
-                Self(ApiError::message(StatusCode::BAD_REQUEST, &e.to_string()))
-            }
-            TodoError::NotFound => Self(ApiError::message(StatusCode::NOT_FOUND, &e.to_string())),
+            TodoError::EmptyTask => Self(ApiError::message(StatusCode::BAD_REQUEST, &message)),
+            TodoError::NotFound => Self(ApiError::message(StatusCode::NOT_FOUND, &message)),
             TodoError::IdempotencyKeyReused => Self(ApiError::message(
                 StatusCode::UNPROCESSABLE_ENTITY,
-                &e.to_string(),
+                &message,
             )),
             TodoError::IdempotencyKeyInFlight => {
-                Self(ApiError::message(StatusCode::CONFLICT, &e.to_string()))
+                Self(ApiError::message(StatusCode::CONFLICT, &message))
             }
             TodoError::Storage(e) => Self::from(e),
         }
