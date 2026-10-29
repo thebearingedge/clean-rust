@@ -4,6 +4,8 @@ use axum::{Json, Router, extract::State, http::StatusCode, routing::get};
 use futures_util::future::join_all;
 use serde::Serialize;
 
+use crate::graceful_shutdown::Draining;
+
 /// The result type of a readiness check: errors are erased to a `String`
 /// message here so the generic router can log and report them without
 /// knowing the underlying error types.
@@ -52,6 +54,7 @@ impl HealthCheck {
 struct HealthState {
     checks: Arc<[HealthCheck]>,
     timeout: Duration,
+    draining: Draining,
 }
 
 #[derive(Serialize)]
@@ -66,15 +69,19 @@ struct Readiness {
 ///
 /// - `/livez` — liveness; always returns `200 OK` with no body. If the
 ///   process can serve this, it is alive.
-/// - `/readyz` — readiness; runs every [`HealthCheck`] concurrently, each
-///   bounded by `timeout`. Returns `200 OK` with `{"status": "ok", ...}` when
-///   every check passes, or `503` with `{"status": "unavailable", ...}` and a
-///   per-check `ok`/`failed` map (timed-out checks report `"failed"`) when
-///   any check fails.
-pub fn router(checks: Vec<HealthCheck>, timeout: Duration) -> Router {
+/// - `/readyz` — readiness; once a shutdown signal has flipped `draining`,
+///   returns `503` with `{"status": "shutting_down", "checks": {}}` and
+///   skips the dependency checks entirely. Otherwise it runs every
+///   [`HealthCheck`] concurrently, each bounded by `timeout`, returning
+///   `200 OK` with `{"status": "ok", ...}` when every check passes, or
+///   `503` with `{"status": "unavailable", ...}` and a per-check
+///   `ok`/`failed` map (timed-out checks report `"failed"`) when any check
+///   fails.
+pub fn router(checks: Vec<HealthCheck>, timeout: Duration, draining: Draining) -> Router {
     let state = HealthState {
         checks: checks.into(),
         timeout,
+        draining,
     };
     Router::new()
         .route("/livez", get(|| async { StatusCode::OK }))
@@ -83,6 +90,16 @@ pub fn router(checks: Vec<HealthCheck>, timeout: Duration) -> Router {
 }
 
 async fn readyz(State(state): State<HealthState>) -> (StatusCode, Json<Readiness>) {
+    if state.draining.is_draining() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(Readiness {
+                status: "shutting_down",
+                checks: BTreeMap::new(),
+            }),
+        );
+    }
+
     let timeout = state.timeout;
     let outcomes = join_all(state.checks.iter().map(|check| async move {
         let result = match tokio::time::timeout(timeout, (check.run)()).await {
@@ -112,17 +129,30 @@ async fn readyz(State(state): State<HealthState>) -> (StatusCode, Json<Readiness
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
+    use std::{
+        sync::{
+            Arc,
+            atomic::{AtomicBool, Ordering},
+        },
+        time::Duration,
+    };
 
     use super::{self as health};
     use axum::{
         body::Body,
         http::{Request, StatusCode},
     };
+    use http_body_util::BodyExt;
+    use serde_json::Value;
     use tower::ServiceExt;
 
     fn get(uri: &str) -> Request<Body> {
         Request::builder().uri(uri).body(Body::empty()).unwrap()
+    }
+
+    async fn body_json(body: Body) -> Value {
+        let bytes = body.collect().await.unwrap().to_bytes();
+        serde_json::from_slice(&bytes).unwrap()
     }
 
     #[tokio::test]
@@ -132,6 +162,7 @@ mod tests {
                 Ok::<(), String>(())
             })],
             Duration::from_secs(2),
+            health::Draining::default(),
         );
         let res = router.oneshot(get("/readyz")).await.unwrap();
         assert_eq!(res.status(), StatusCode::OK);
@@ -144,10 +175,53 @@ mod tests {
                 Err::<(), _>("boom")
             })],
             Duration::from_secs(2),
+            health::Draining::default(),
         );
         let res = router.clone().oneshot(get("/readyz")).await.unwrap();
         assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
         let res = router.oneshot(get("/livez")).await.unwrap();
         assert_eq!(res.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn readyz_is_503_shutting_down_while_draining() {
+        let draining = health::Draining::default();
+        let router = health::router(vec![], Duration::from_secs(2), draining.clone());
+        draining.begin();
+        let res = router.oneshot(get("/readyz")).await.unwrap();
+        assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = body_json(res.into_body()).await;
+        assert_eq!(body["status"], "shutting_down");
+        assert_eq!(body["checks"], serde_json::json!({}));
+    }
+
+    #[tokio::test]
+    async fn livez_stays_ok_while_draining() {
+        let draining = health::Draining::default();
+        let router = health::router(vec![], Duration::from_secs(2), draining.clone());
+        draining.begin();
+        let res = router.oneshot(get("/livez")).await.unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn draining_skips_the_checks_entirely() {
+        let ran = Arc::new(AtomicBool::default());
+        let ran_in_check = Arc::clone(&ran);
+        let draining = health::Draining::default();
+        let router = health::router(
+            vec![health::HealthCheck::new("down", move || {
+                ran_in_check.store(true, Ordering::Relaxed);
+                async { Err::<(), _>("boom") }
+            })],
+            Duration::from_secs(2),
+            draining.clone(),
+        );
+        draining.begin();
+        let res = router.oneshot(get("/readyz")).await.unwrap();
+        assert_eq!(res.status(), StatusCode::SERVICE_UNAVAILABLE);
+        let body = body_json(res.into_body()).await;
+        assert_eq!(body["status"], "shutting_down");
+        assert!(!ran.load(Ordering::Relaxed));
     }
 }

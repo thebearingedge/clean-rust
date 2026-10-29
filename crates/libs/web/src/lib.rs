@@ -19,7 +19,10 @@ pub mod fallback;
 /// [`crate::extractors::ValidatedPath`], and the configurable optional
 /// request-header extractor [`crate::extractors::OptionalHeader`].
 pub mod extractors;
-mod graceful_shutdown;
+/// Drain flag ([`crate::graceful_shutdown::Draining`]), the
+/// [`crate::graceful_shutdown::graceful_shutdown`] future, and platform
+/// shutdown-signal handling ([`crate::graceful_shutdown::shutdown_signal`]).
+pub mod graceful_shutdown;
 
 /// Liveness (`/livez`) and readiness (`/readyz`) probe router.
 pub mod health;
@@ -40,12 +43,3 @@ pub mod request_id;
 /// compiled only when the `test-support` feature is enabled.
 #[cfg(feature = "test-support")]
 pub mod test_support;
-
-/// A future that resolves when the process should shut down (Ctrl+C or
-/// SIGTERM on Unix).
-///
-/// `graceful_shutdown` is deliberately private, unlike its sibling modules:
-/// consumers need only the future itself, not the platform-specific handler
-/// installation it encapsulates, so the public surface stays at the crate
-/// root as `web::shutdown_signal`.
-pub use graceful_shutdown::shutdown_signal;
