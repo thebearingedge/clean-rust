@@ -30,6 +30,7 @@ uuid.workspace = true
 [dev-dependencies]
 claims.workspace = true
 serde-json-assert.workspace = true
+tower.workspace = true
 
 [lints]
 workspace = true

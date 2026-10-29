@@ -7,6 +7,10 @@
 /// [`crate::api_error::ApiError`] response wrapper.
 pub mod api_error;
 
+/// CORS layer composition for browser clients
+/// ([`crate::cors::with_cors`]).
+pub mod cors;
+
 /// Encoding and decoding of opaque, base64url pagination cursor tokens.
 pub mod cursor_token;
 

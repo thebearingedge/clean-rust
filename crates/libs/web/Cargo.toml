@@ -23,7 +23,7 @@ serde_urlencoded.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tower.workspace = true
-tower-http = { workspace = true, features = ["request-id"] }
+tower-http = { workspace = true, features = ["request-id", "cors"] }
 tracing.workspace = true
 uuid.workspace = true
 
