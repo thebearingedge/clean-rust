@@ -191,6 +191,35 @@ mod tests {
     }
 
     #[sqlx::test]
+    async fn documents_the_created_todo_location_header(postgres: PgPool) {
+        let parts = get(todos_api(postgres), "/openapi.json").await;
+
+        let body = parts
+            .body
+            .as_ref()
+            .expect("should have returned the document");
+
+        let created = &body["paths"]["/v1/todos"]["post"]["responses"]["201"];
+
+        let location = &created["headers"]["Location"];
+
+        assert_json_include!(actual: location.clone(), expected: json!({
+            "required": true,
+            "description": "The path of the new todo, relative to the service root.",
+            "schema": { "type": "string" }
+        }));
+
+        let description = &body["paths"]["/v1/todos"]["post"]["description"];
+        assert!(
+            description
+                .as_str()
+                .unwrap_or_default()
+                .contains("Location"),
+            "the addTodo description should mention the Location header"
+        );
+    }
+
+    #[sqlx::test]
     async fn documents_the_idempotency_key_header_schema(postgres: PgPool) {
         let parts = get(todos_api(postgres), "/openapi.json").await;
 

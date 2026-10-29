@@ -7,6 +7,7 @@ use axum::{Extension, Json, Router, routing::get};
 use crate::{
     app_state::AppState,
     controller::{self, TodoHttp, TodoPageHttp},
+    paths::{TODO_PATH, TODOS_PATH},
 };
 use web::api_error::ErrorBody;
 
@@ -34,7 +35,7 @@ pub fn create_todos_api(app_state: AppState) -> Router {
     web::fallback::with_json_fallbacks(
         ApiRouter::new()
             .api_route(
-                "/v1/todos/{todo_id}",
+                TODO_PATH,
                 get_with(controller::get_todo, |op| {
                     web::openapi::standard_get_errors(
                         op.id("getTodo")
@@ -66,24 +67,28 @@ pub fn create_todos_api(app_state: AppState) -> Router {
                 }),
             )
             .api_route(
-                "/v1/todos",
+                TODOS_PATH,
                 post_with(controller::add_todo, |op| {
                     web::openapi::standard_post_errors(
-                        op.id("addTodo")
-                            .summary("Create a todo")
-                            .description(
-                                "Adds a new todo and returns it with a `201 Created` status. \
-                                 The optional `Idempotency-Key` request header (visible ASCII, \
-                                 1 to 64 characters) makes the creation idempotent: the same \
-                                 key and body replay the original todo and the response \
-                                 carries `Idempotent-Replayed: true`; the same key with a \
-                                 different body is rejected with `422 Unprocessable Entity`, \
-                                 and a key still held by an unfinished request with \
-                                 `409 Conflict`. Without the header, every request creates a \
-                                 new todo.",
-                            )
-                            .response::<201, Json<TodoHttp>>()
-                            .response::<409, Json<ErrorBody>>(),
+                        web::openapi::response_header::<Json<TodoHttp>, 201>(
+                            op.id("addTodo")
+                                .summary("Create a todo")
+                                .description(
+                                    "Adds a new todo and returns it with a `201 Created` status, \
+                                     with the path of the new todo in the `Location` response \
+                                     header. The optional `Idempotency-Key` request header \
+                                     (visible ASCII, 1 to 64 characters) makes the creation \
+                                     idempotent: the same key and body replay the original todo \
+                                     and the response carries `Idempotent-Replayed: true`; the \
+                                     same key with a different body is rejected with \
+                                     `422 Unprocessable Entity`, and a key still held by an \
+                                     unfinished request with `409 Conflict`. Without the header, \
+                                     every request creates a new todo.",
+                                )
+                                .response::<409, Json<ErrorBody>>(),
+                            "Location",
+                            "The path of the new todo, relative to the service root.",
+                        ),
                     )
                 })
                 .get_with(controller::list_todos, |op| {

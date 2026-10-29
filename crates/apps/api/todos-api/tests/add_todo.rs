@@ -14,7 +14,7 @@ mod tests {
     use uuid::Uuid;
 
     use super::common::todos_api;
-    use web::test_support::{post_body, post_json};
+    use web::test_support::{get, post_body, post_json};
 
     #[sqlx::test(migrator = "todos::MIGRATOR")]
     async fn requires_a_json_body(postgres: PgPool) {
@@ -84,8 +84,9 @@ mod tests {
 
     #[sqlx::test(migrator = "todos::MIGRATOR")]
     async fn responds_with_the_added_todo(postgres: PgPool) {
+        let router = todos_api(postgres);
         let parts = post_json(
-            todos_api(postgres),
+            router.clone(),
             "/v1/todos",
             &json!({ "task": "write some rust!" }),
         )
@@ -110,6 +111,21 @@ mod tests {
 
         assert_ok!(DateTime::parse_from_rfc3339(updated_at));
         assert_json_include!(actual: parts.body, expected: json!({
+            "task": "write some rust!",
+            "completedAt": null
+        }));
+
+        let location = parts
+            .header("location")
+            .expect("should have returned a Location header");
+        assert_eq!(location, format!("/v1/todos/{todo_id}"));
+
+        let fetched = get(router, &location).await;
+
+        assert_eq!(fetched.status, StatusCode::OK);
+        assert_eq!(fetched.content_type, "application/json");
+        assert_json_include!(actual: fetched.body, expected: json!({
+            "todoId": todo_id.to_string(),
             "task": "write some rust!",
             "completedAt": null
         }));
