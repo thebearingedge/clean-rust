@@ -47,11 +47,6 @@ impl DbError {
     /// (pool timed out or closed, IO failure).
     #[must_use]
     pub fn is_unavailable(&self) -> bool {
-        // Deliberate over-classification: any `sqlx::Error::Io(_)` is treated
-        // as availability loss (→ 503 downstream), even though an IO error can
-        // in principle occur mid-query for non-availability reasons. The cost
-        // of an occasional 503 where a 500 would fit is preferred over the cost
-        // of classifying a genuinely dead connection as `Other`.
         matches!(
             self.source,
             sqlx::Error::PoolTimedOut | sqlx::Error::PoolClosed | sqlx::Error::Io(_)

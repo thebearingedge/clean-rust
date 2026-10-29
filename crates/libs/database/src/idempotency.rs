@@ -129,8 +129,8 @@ struct KeyRow {
     entity_id: Option<Uuid>,
 }
 
-#[derive(Clone, Debug)]
 /// Postgres implementation of the [`IdempotencyRepository`] port.
+#[derive(Clone, Debug)]
 pub struct PgIdempotencyRepository {
     database: Database,
 }

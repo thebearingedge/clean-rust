@@ -33,10 +33,9 @@ impl Extractor for HeaderExtractor<'_> {
 
 /// Links `span` to the parent trace context carried in `headers`, if any.
 ///
-/// Best effort and silent: a missing or invalid parent context is ignored and
-/// `span` simply stays a root span, and the result of
-/// [`OpenTelemetrySpanExt::set_parent`] is discarded (the context was already
-/// validated above). Propagation must never fail the surrounding request path.
+/// A missing or invalid parent context is ignored and `span` stays a root
+/// span; the result of [`OpenTelemetrySpanExt::set_parent`] is discarded.
+/// Propagation is silent and does not fail the surrounding request.
 pub fn link_parent(span: &Span, headers: &HeaderMap) {
     let parent = global::get_text_map_propagator(|p| p.extract(&HeaderExtractor(headers)));
     if parent.span().span_context().is_valid() {
@@ -46,10 +45,7 @@ pub fn link_parent(span: &Span, headers: &HeaderMap) {
 
 /// [`Injector`] adapter that writes trace context into a [`HeaderMap`].
 ///
-/// `set` deliberately drops invalid header names/values without logging: the
-/// [`Injector`] trait offers no error channel, the only way a value can be
-/// invalid here is a broken propagator, and dropping it degrades the request
-/// to "not traced" rather than failing it.
+/// Invalid header names/values are dropped without logging.
 struct HeaderInjector<'a>(&'a mut HeaderMap);
 
 impl Injector for HeaderInjector<'_> {
@@ -75,9 +71,10 @@ pub fn inject_current(headers: &mut HeaderMap) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use opentelemetry::trace::{SpanContext, SpanId, TraceFlags, TraceId, TraceState};
     use opentelemetry_sdk::propagation::TraceContextPropagator;
+
+    use super::*;
 
     #[test]
     fn injected_context_can_be_extracted_again() {

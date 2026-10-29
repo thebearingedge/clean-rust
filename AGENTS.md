@@ -4,7 +4,7 @@
 
 `clean-rust` is a Rust workspace (edition 2024) demonstrating Clean Architecture. Three layers with dependency direction apps → domains → libs:
 
-- `crates/apps/` — deployables: `todos-api` (axum HTTP API), `email-worker`, `ops-cli`
+- `crates/apps/` — deployables, at `crates/apps/<category>/<app>`: `api/todos-api` (axum HTTP API), `worker/email-worker`, `cli/ops-cli`
 - `crates/domains/` — business logic (e.g. `todos`): use_cases define repository ports, infrastructure implements them (sqlx + sea-query), migrations live in `crates/domains/<domain>/migrations`
 - `crates/libs/` — shared libraries: `web`, `database`, `storage`, `telemetry`, `utils`
 

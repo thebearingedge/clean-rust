@@ -2798,11 +2798,9 @@ dependencies = [
  "sqlx",
  "storage",
  "telemetry",
- "thiserror",
  "todos",
  "tokio",
  "tower",
- "tower-http 0.7.1",
  "tracing",
  "utils",
  "uuid",
@@ -3162,9 +3160,6 @@ checksum = "b6c140620e7ffbb22c2dee59cafe6084a59b5ffc27a8859a5f0d494b5d52b6be"
 [[package]]
 name = "utils"
 version = "0.1.0"
-dependencies = [
- "uuid",
-]
 
 [[package]]
 name = "uuid"
@@ -3319,7 +3314,6 @@ dependencies = [
  "serde_html_form",
  "serde_json",
  "serde_path_to_error",
- "serde_urlencoded",
  "telemetry",
  "thiserror",
  "tokio",

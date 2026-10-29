@@ -9,11 +9,26 @@ Read `AGENTS.md` at the repo root first — it holds the hard rules (commit poli
 
 Adding a new HTTP endpoint to an API app? Follow the `adding-an-endpoint` skill — it expands the inside-out workflow below into the endpoint-specific playbook (DTO naming, OpenAPI wiring, validation, error mapping, per-handler test layout).
 
+## Style priorities
+
+Two qualities carry extra weight in review, alongside the rules below:
+
+- **Idiomatic over manual:** prefer the construct the language/std offers —
+  iterator adapters and combinators over `if`-based `Option`/`Result`
+  plumbing, `match` over `if/else` on `bool` predicates, method references over
+  trivial closures. When a helper only *reads* a value it doesn't own, take it
+  by reference; take it by value only when it consumes it.
+- **Typed over stringly-typed:** pass typed values (`Method`, enums, newtypes)
+  through APIs instead of string parameters; keep statuses, modes, and
+  identifiers as enum variants or named constants and produce their string form
+  only at the boundary — serialization (`serde` renames), header construction,
+  wire formats. Never compare or branch on bare string literals for state.
+
 ## Placement — decide the layer before writing code
 
 Dependency direction is strictly apps → domains → libs. Put new code where its dependencies point outward:
 
-- **HTTP/framework/CLI concerns** (axum handlers, extractors, config parsing, `main`) → `crates/apps/<app>`
+- **HTTP/framework/CLI concerns** (axum handlers, extractors, config parsing, `main`) → `crates/apps/<category>/<app>` (e.g. `api/todos-api`, `worker/email-worker`, `cli/ops-cli`)
 - **Business rules, ports, use cases** → `crates/domains/<domain>/src/use_cases`
 - **Domain models and invariants** (validation like `has_valid_task`) → `crates/domains/<domain>/src/models`
 - **Database implementations** (sqlx, sea-query) → `crates/domains/<domain>/src/infrastructure`
@@ -45,7 +60,7 @@ Leaks to avoid (found in past reviews):
 ## Patterns
 
 - **Imports**: three groups separated by blank lines, in this order — std library, third-party crates, then one contiguous block of internal workspace crates (`todos`, `database`, `telemetry`, `storage`, `utils`, `web`) together with the current crate's paths (`crate::` / `super::`) — project crate imports don't need separation lines (PR 66 review). rustfmt orders `super::`/`crate::` within the merged block, so they sort first — that is expected, not a formatting bug. The same rule applies inside `#[cfg(test)]` modules and to integration-test files under `crates/**/tests`.
-- **Error types**: one dedicated file per crate/layer named `<thing>_error.rs`, using `thiserror`. When wrapping a source error, interpolate `{source}` in the `#[error(...)]` message so diagnostics survive `Display`. If a struct-variant split (like `DbError` → `StorageError` classification) is intentional, document it at the top of the file. (The app-layer HTTP error envelope convention is endpoint-specific — see `adding-an-endpoint`.)
+- **Error types**: one dedicated file per crate/layer named `<thing>_error.rs`, using `thiserror`. When wrapping a source error, interpolate `{source}` in the `#[error(...)]` message so diagnostics survive `Display` — this binds only for fields *named* `source`; for unnamed `#[source]` tuple fields, positional `{0}` is the correct equivalent (thiserror 2.x does not bind `{source}` for tuple fields; verified in review of issue #70). If a struct-variant split (like `DbError` → `StorageError` classification) is intentional, document it at the top of the file. (The app-layer HTTP error envelope convention is endpoint-specific — see `adding-an-endpoint`.)
 - **Modules**: multi-file modules use the file-and-folder pattern — `mod.rs`-style parent file (`repositories.rs`) alongside its directory (`repositories/todos_repository.rs`). New sibling modules should match.
 - **Validation**: single source of truth. If a domain model validates (e.g. min length), don't re-encode the rule in the delivery layer (or make them agree); error messages must match the actual rule (`EmptyTask` shouldn't be raised when the real rule is "more than one character").
 - **Dependencies**: workspace deps come from the root `Cargo.toml` `[workspace.dependencies]` — reference with `workspace = true`. Before proposing a new third-party dependency, check that no existing workspace dependency already covers the need. Looking up the latest version of a crate (crates.io/docs.rs) is fine, but never add or upgrade a dependency without explicit human permission — propose the crate, version, and reason first, then wait. Never declare a dep a crate doesn't use (unused `uuid`, `thiserror`, `axum` were all flagged).

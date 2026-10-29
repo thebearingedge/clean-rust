@@ -57,10 +57,33 @@ struct HealthState {
     draining: Draining,
 }
 
+/// Overall readiness of the service, reported as the `status` field of the
+/// `/readyz` response body.
+#[derive(Serialize)]
+#[serde(rename_all = "snake_case")]
+enum ReadinessStatus {
+    /// Every check passed.
+    Ok,
+    /// At least one check failed.
+    Unavailable,
+    /// A shutdown signal has been received; checks are skipped.
+    ShuttingDown,
+}
+
+/// Outcome of a single named readiness check, reported in the `checks` map.
+#[derive(Serialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+enum CheckStatus {
+    /// The check completed successfully within the timeout.
+    Ok,
+    /// The check failed or timed out.
+    Failed,
+}
+
 #[derive(Serialize)]
 struct Readiness {
-    status: &'static str,
-    checks: BTreeMap<&'static str, &'static str>,
+    status: ReadinessStatus,
+    checks: BTreeMap<&'static str, CheckStatus>,
 }
 
 /// The health-probe router.
@@ -94,7 +117,7 @@ async fn readyz(State(state): State<HealthState>) -> (StatusCode, Json<Readiness
         return (
             StatusCode::SERVICE_UNAVAILABLE,
             Json(Readiness {
-                status: "shutting_down",
+                status: ReadinessStatus::ShuttingDown,
                 checks: BTreeMap::new(),
             }),
         );
@@ -115,14 +138,23 @@ async fn readyz(State(state): State<HealthState>) -> (StatusCode, Json<Readiness
         if let Err(error) = &result {
             tracing::warn!(check = name, %error, "readiness check failed");
         }
-        checks.insert(name, if result.is_ok() { "ok" } else { "failed" });
+        checks.insert(
+            name,
+            match result {
+                Ok(()) => CheckStatus::Ok,
+                Err(_) => CheckStatus::Failed,
+            },
+        );
     }
 
-    let ready = checks.values().all(|status| *status == "ok");
+    let ready = checks.values().all(|status| *status == CheckStatus::Ok);
     let (code, status) = if ready {
-        (StatusCode::OK, "ok")
+        (StatusCode::OK, ReadinessStatus::Ok)
     } else {
-        (StatusCode::SERVICE_UNAVAILABLE, "unavailable")
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            ReadinessStatus::Unavailable,
+        )
     };
     (code, Json(Readiness { status, checks }))
 }
@@ -137,7 +169,6 @@ mod tests {
         time::Duration,
     };
 
-    use super::{self as health};
     use axum::{
         body::Body,
         http::{Request, StatusCode},
@@ -145,6 +176,8 @@ mod tests {
     use http_body_util::BodyExt;
     use serde_json::Value;
     use tower::ServiceExt;
+
+    use super::{self as health};
 
     fn get(uri: &str) -> Request<Body> {
         Request::builder().uri(uri).body(Body::empty()).unwrap()

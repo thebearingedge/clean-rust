@@ -9,7 +9,7 @@ mod tests {
     use axum::{
         Router,
         body::Body,
-        http::{self, HeaderMap, HeaderValue, Request, StatusCode, header},
+        http::{self, HeaderMap, HeaderName, HeaderValue, Method, Request, StatusCode, header},
     };
     use serde_json::json;
     use serde_json_assert::assert_json_include;
@@ -18,13 +18,20 @@ mod tests {
 
     use super::common::todos_api;
     use todos_api::{api::create_todos_api, app_state::AppState};
-    use web::cors::with_cors;
+    use web::cors::{IDEMPOTENCY_KEY, TRACEPARENT, TRACESTATE, with_cors};
     use web::middleware::with_http_tracing;
     use web::test_support::{get_with_headers, post_json_with_headers};
 
     const ALLOWED_ORIGIN: &str = "http://localhost:5173";
     const UNLISTED_ORIGIN: &str = "http://evil.example";
     const PREFLIGHT_REQUEST_HEADERS: &str = "content-type, idempotency-key";
+    const ALLOWED_METHODS: [Method; 4] = [Method::GET, Method::POST, Method::PUT, Method::DELETE];
+    const ALLOWED_HEADERS: [HeaderName; 4] = [
+        header::CONTENT_TYPE,
+        IDEMPOTENCY_KEY,
+        TRACEPARENT,
+        TRACESTATE,
+    ];
 
     /// Builds the todos API router with the CORS layer outermost, exactly as
     /// `main.rs` composes it.
@@ -32,6 +39,8 @@ mod tests {
         with_cors(
             with_http_tracing(create_todos_api(AppState::new(postgres))),
             allowed_origins,
+            ALLOWED_METHODS,
+            ALLOWED_HEADERS,
         )
     }
 
@@ -39,12 +48,12 @@ mod tests {
         vec![HeaderValue::from_static(ALLOWED_ORIGIN)]
     }
 
-    fn preflight(origin: &str) -> Request<Body> {
+    fn preflight_for(origin: &str, request_method: &str) -> Request<Body> {
         Request::builder()
             .method(http::Method::OPTIONS)
             .uri("/v1/todos")
             .header(header::ORIGIN, origin)
-            .header(header::ACCESS_CONTROL_REQUEST_METHOD, "POST")
+            .header(header::ACCESS_CONTROL_REQUEST_METHOD, request_method)
             .header(
                 header::ACCESS_CONTROL_REQUEST_HEADERS,
                 PREFLIGHT_REQUEST_HEADERS,
@@ -53,9 +62,13 @@ mod tests {
             .expect("OPTIONS request should be buildable")
     }
 
-    async fn preflight_parts(router: Router, origin: &str) -> (StatusCode, HeaderMap) {
+    async fn preflight_parts(
+        router: Router,
+        origin: &str,
+        request_method: &str,
+    ) -> (StatusCode, HeaderMap) {
         let response = router
-            .oneshot(preflight(origin))
+            .oneshot(preflight_for(origin, request_method))
             .await
             .expect("OPTIONS request should be handled");
         let status = response.status();
@@ -71,8 +84,12 @@ mod tests {
 
     #[sqlx::test]
     async fn preflight_from_an_allowed_origin_is_answered(postgres: PgPool) {
-        let (status, headers) =
-            preflight_parts(cors_api(postgres, allowed_origins()), ALLOWED_ORIGIN).await;
+        let (status, headers) = preflight_parts(
+            cors_api(postgres, allowed_origins()),
+            ALLOWED_ORIGIN,
+            "POST",
+        )
+        .await;
 
         assert!(status.is_success());
         assert_eq!(
@@ -82,9 +99,25 @@ mod tests {
     }
 
     #[sqlx::test]
-    async fn preflight_from_an_unlisted_origin_has_no_allow_origin_header(postgres: PgPool) {
+    async fn preflight_for_a_method_beyond_the_default_set_is_answered(postgres: PgPool) {
         let (status, headers) =
-            preflight_parts(cors_api(postgres, allowed_origins()), UNLISTED_ORIGIN).await;
+            preflight_parts(cors_api(postgres, allowed_origins()), ALLOWED_ORIGIN, "PUT").await;
+
+        assert!(status.is_success());
+        assert_eq!(
+            headers.get("access-control-allow-methods"),
+            Some(&HeaderValue::from_static("GET,POST,PUT,DELETE"))
+        );
+    }
+
+    #[sqlx::test]
+    async fn preflight_from_an_unlisted_origin_has_no_allow_origin_header(postgres: PgPool) {
+        let (status, headers) = preflight_parts(
+            cors_api(postgres, allowed_origins()),
+            UNLISTED_ORIGIN,
+            "POST",
+        )
+        .await;
 
         assert!(status.is_success());
         assert!(headers.get("access-control-allow-origin").is_none());
@@ -155,7 +188,7 @@ mod tests {
 
     #[sqlx::test]
     async fn cors_is_off_without_configured_origins(postgres: PgPool) {
-        let (status, headers) = preflight_parts(todos_api(postgres), ALLOWED_ORIGIN).await;
+        let (status, headers) = preflight_parts(todos_api(postgres), ALLOWED_ORIGIN, "POST").await;
 
         assert_eq!(status, StatusCode::METHOD_NOT_ALLOWED);
         assert!(!has_cors_headers(&headers));

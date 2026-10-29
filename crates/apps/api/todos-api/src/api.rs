@@ -18,9 +18,8 @@ use web::api_error::ErrorBody;
 /// the generated [`OpenApi`] document served at `/openapi.json`, and JSON
 /// fallback handlers replace axum's default empty 404 and 405 responses.
 ///
-/// Aide cannot read doc comments, so the operation descriptions set in the
-/// route-mount closures below are duplicated from the handler doc comments in
-/// `controller.rs` and must be kept in sync with them.
+/// Operation descriptions are provided explicitly in the route-mount closures
+/// below, matching the handler doc comments in `controller.rs`.
 pub fn create_todos_api(app_state: AppState) -> Router {
     let mut api = OpenApi {
         info: Info {
