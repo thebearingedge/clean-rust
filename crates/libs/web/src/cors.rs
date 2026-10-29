@@ -104,12 +104,15 @@ mod tests {
         with_cors(router, allowed_origins(), ALLOWED_METHODS, ALLOWED_HEADERS)
     }
 
-    fn preflight(origin: &str, request_method: &str, request_headers: &str) -> Request<Body> {
+    fn preflight(origin: &str, request_method: &Method, request_headers: &str) -> Request<Body> {
         Request::builder()
-            .method(http::Method::OPTIONS)
+            .method(Method::OPTIONS)
             .uri("/todos")
             .header(http::header::ORIGIN, origin)
-            .header(http::header::ACCESS_CONTROL_REQUEST_METHOD, request_method)
+            .header(
+                http::header::ACCESS_CONTROL_REQUEST_METHOD,
+                HeaderValue::from_str(request_method.as_str()).unwrap(),
+            )
             .header(
                 http::header::ACCESS_CONTROL_REQUEST_HEADERS,
                 request_headers,
@@ -118,7 +121,7 @@ mod tests {
             .unwrap()
     }
 
-    fn request(method: &'static str, uri: &str, origin: &str) -> Request<Body> {
+    fn request(method: Method, uri: &str, origin: &str) -> Request<Body> {
         Request::builder()
             .method(method)
             .uri(uri)
@@ -145,7 +148,11 @@ mod tests {
     #[tokio::test]
     async fn empty_origin_list_leaves_the_router_without_cors() {
         let res = with_cors(router(), vec![], ALLOWED_METHODS, ALLOWED_HEADERS)
-            .oneshot(preflight(ALLOWED_ORIGIN, "POST", PREFLIGHT_REQUEST_HEADERS))
+            .oneshot(preflight(
+                ALLOWED_ORIGIN,
+                &Method::POST,
+                PREFLIGHT_REQUEST_HEADERS,
+            ))
             .await
             .unwrap();
         assert_eq!(res.status(), StatusCode::METHOD_NOT_ALLOWED);
@@ -155,7 +162,11 @@ mod tests {
     #[tokio::test]
     async fn allowed_origin_preflight_is_answered_with_the_exact_origin() {
         let res = with_test_cors(router())
-            .oneshot(preflight(ALLOWED_ORIGIN, "POST", PREFLIGHT_REQUEST_HEADERS))
+            .oneshot(preflight(
+                ALLOWED_ORIGIN,
+                &Method::POST,
+                PREFLIGHT_REQUEST_HEADERS,
+            ))
             .await
             .unwrap();
         assert_eq!(res.status(), StatusCode::OK);
@@ -184,7 +195,7 @@ mod tests {
             let res = with_test_cors(router())
                 .oneshot(preflight(
                     ALLOWED_ORIGIN,
-                    method.as_str(),
+                    &method,
                     PREFLIGHT_REQUEST_HEADERS,
                 ))
                 .await
@@ -198,7 +209,7 @@ mod tests {
         let res = with_test_cors(router())
             .oneshot(preflight(
                 ALLOWED_ORIGIN,
-                "PATCH",
+                &Method::PATCH,
                 PREFLIGHT_REQUEST_HEADERS,
             ))
             .await
@@ -210,7 +221,7 @@ mod tests {
             .to_str()
             .unwrap();
         assert_eq!(methods, ADVERTISED_METHODS);
-        assert!(!methods.contains("PATCH"));
+        assert!(!methods.contains(Method::PATCH.as_str()));
     }
 
     #[tokio::test]
@@ -218,7 +229,7 @@ mod tests {
         let res = with_test_cors(router())
             .oneshot(preflight(
                 ALLOWED_ORIGIN,
-                "POST",
+                &Method::POST,
                 "content-type, x-not-allowed",
             ))
             .await
@@ -238,7 +249,7 @@ mod tests {
         let res = with_test_cors(router())
             .oneshot(preflight(
                 UNLISTED_ORIGIN,
-                "POST",
+                &Method::POST,
                 PREFLIGHT_REQUEST_HEADERS,
             ))
             .await
@@ -249,7 +260,7 @@ mod tests {
     #[tokio::test]
     async fn actual_request_from_allowed_origin_carries_expose_headers() {
         let res = with_test_cors(router())
-            .oneshot(request("GET", "/todos", ALLOWED_ORIGIN))
+            .oneshot(request(Method::GET, "/todos", ALLOWED_ORIGIN))
             .await
             .unwrap();
         assert_eq!(res.status(), StatusCode::OK);

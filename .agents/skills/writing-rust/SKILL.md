@@ -9,6 +9,21 @@ Read `AGENTS.md` at the repo root first — it holds the hard rules (commit poli
 
 Adding a new HTTP endpoint to an API app? Follow the `adding-an-endpoint` skill — it expands the inside-out workflow below into the endpoint-specific playbook (DTO naming, OpenAPI wiring, validation, error mapping, per-handler test layout).
 
+## Style priorities
+
+Two qualities carry extra weight in review, alongside the rules below:
+
+- **Idiomatic over manual:** prefer the construct the language/std offers —
+  iterator adapters and combinators over `if`-based `Option`/`Result`
+  plumbing, `match` over `if/else` on `bool` predicates, method references over
+  trivial closures. When a helper only *reads* a value it doesn't own, take it
+  by reference; take it by value only when it consumes it.
+- **Typed over stringly-typed:** pass typed values (`Method`, enums, newtypes)
+  through APIs instead of string parameters; keep statuses, modes, and
+  identifiers as enum variants or named constants and produce their string form
+  only at the boundary — serialization (`serde` renames), header construction,
+  wire formats. Never compare or branch on bare string literals for state.
+
 ## Placement — decide the layer before writing code
 
 Dependency direction is strictly apps → domains → libs. Put new code where its dependencies point outward:

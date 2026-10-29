@@ -140,10 +140,9 @@ async fn readyz(State(state): State<HealthState>) -> (StatusCode, Json<Readiness
         }
         checks.insert(
             name,
-            if result.is_ok() {
-                CheckStatus::Ok
-            } else {
-                CheckStatus::Failed
+            match result {
+                Ok(()) => CheckStatus::Ok,
+                Err(_) => CheckStatus::Failed,
             },
         );
     }
