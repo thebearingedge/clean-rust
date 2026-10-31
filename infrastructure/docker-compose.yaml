@@ -57,7 +57,7 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-    tmpfs: /var/lib/kafka/data
+    tmpfs: /var/lib/kafka/data:uid=1000,gid=1000,mode=0755
     volumes:
       - ./openssl/certs:/tmp/certs:ro
     ports:
