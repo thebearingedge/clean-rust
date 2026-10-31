@@ -77,7 +77,7 @@ services:
       dockerfile: ./rustfs/Dockerfile
     environment:
       RUSTFS_BUCKETS: default
-    tmpfs: /data
+    tmpfs: /data:uid=10001,gid=10001,mode=0755
     volumes:
       - ./rustfs/entrypoint.sh:/tmp/entrypoint.sh:ro
       - ./rustfs/healthcheck.sh:/tmp/healthcheck.sh:ro
