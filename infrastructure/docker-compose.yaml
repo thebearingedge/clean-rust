@@ -16,6 +16,8 @@ services:
       test: pg_isready -h 127.0.0.1 -U postgres -d postgres || exit 1
       interval: 1s
       start_period: 5s
+      retries: 5
+      timeout: 5s
 
   pgweb:
     image: docker.io/sosedoff/pgweb:0.17.0
@@ -27,11 +29,119 @@ services:
       postgres:
         condition: service_healthy
 
+  openssl:
+    image: docker.io/alpine/openssl:3.5.9
+    volumes:
+      - ./openssl/generate-certs.sh:/tmp/generate-certs.sh:ro
+      - ./openssl/certs:/tmp/certs
+    entrypoint: /tmp/generate-certs.sh
+
+  kafka:
+    image: docker.io/apache/kafka:4.4.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9094
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENERS: HOST://:9093,INTERNAL://:9092,CONTROLLER://:9094
+      KAFKA_ADVERTISED_LISTENERS: HOST://localhost:9093,INTERNAL://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: HOST:SSL,INTERNAL:SSL,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_SSL_KEYSTORE_TYPE: PEM
+      KAFKA_SSL_KEYSTORE_LOCATION: /tmp/certs/broker-keystore.pem
+      KAFKA_SSL_TRUSTSTORE_TYPE: PEM
+      KAFKA_SSL_TRUSTSTORE_LOCATION: /tmp/certs/ca.pem
+      KAFKA_SSL_CLIENT_AUTH: required
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    tmpfs: /var/lib/kafka/data:uid=1000,gid=1000,mode=0755
+    volumes:
+      - ./openssl/certs:/tmp/certs:ro
+    ports:
+      - 127.0.0.1:9093:9093
+    healthcheck:
+      test: nc -z localhost 9093 || exit 1
+      start_period: 5s
+      interval: 5s
+      retries: 10
+      timeout: 5s
+    depends_on:
+      openssl:
+        condition: service_completed_successfully
+
+  rustfs:
+    build:
+      dockerfile: ./rustfs/Dockerfile
+    environment:
+      RUSTFS_BUCKETS: default
+    tmpfs: /data:uid=10001,gid=10001,mode=0755
+    volumes:
+      - ./rustfs/entrypoint.sh:/tmp/entrypoint.sh:ro
+      - ./rustfs/healthcheck.sh:/tmp/healthcheck.sh:ro
+    ports:
+      - 127.0.0.1:9000:9000
+      - 127.0.0.1:9001:9001
+    entrypoint: /tmp/entrypoint.sh
+    healthcheck:
+      test: /tmp/healthcheck.sh
+      start_period: 3s
+      interval: 5s
+      retries: 5
+      timeout: 5s
+
+  valkey:
+    image: docker.io/valkey/valkey:9.0.7-alpine3.24
+    command: [valkey-server, --save, "", --appendonly, "no"]
+    tmpfs: /data
+    ports:
+      - 127.0.0.1:6379:6379
+    healthcheck:
+      test: [CMD, valkey-cli, ping]
+      start_period: 3s
+      interval: 5s
+      retries: 5
+      timeout: 5s
+
+  opensearch:
+    image: docker.io/opensearchproject/opensearch:3.9.0
+    environment:
+      discovery.type: single-node
+      DISABLE_SECURITY_PLUGIN: "true"
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+    tmpfs: /usr/share/opensearch/data:uid=1000,gid=1000,mode=0755
+    ports:
+      - 127.0.0.1:9200:9200
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    healthcheck:
+      test: [CMD-SHELL, curl -fs http://localhost:9200/_cluster/health || exit 1]
+      start_period: 3s
+      interval: 5s
+      retries: 10
+      timeout: 5s
+
+  opensearch-dashboards:
+    image: docker.io/opensearchproject/opensearch-dashboards:3.9.0
+    environment:
+      OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
+      DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"
+    ports:
+      - 127.0.0.1:5601:5601
+    depends_on:
+      opensearch:
+        condition: service_healthy
+
   opentelemetry-collector:
     image: docker.io/otel/opentelemetry-collector:0.162.0
     command: [--config=/etc/opentelemetry-collector/config.yaml]
     volumes:
       - ./opentelemetry-collector/config.yaml:/etc/opentelemetry-collector/config.yaml:ro
     ports:
-      - 4317:4317
-      - 4318:4318
+      - 127.0.0.1:4317:4317
+      - 127.0.0.1:4318:4318
